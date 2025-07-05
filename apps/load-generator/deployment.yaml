@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: load-generator
+  namespace: observability
+  labels:
+    app: load-generator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: load-generator
+  template:
+    metadata:
+      labels:
+        app: load-generator
+    spec:
+      containers:
+      - name: load-generator
+        image: busybox:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          while true; do
+            # Generate HTTP requests to sample app
+            wget -q -O /dev/null http://sample-app-service.observability.svc.cluster.local:80/ || true
+            wget -q -O /dev/null http://sample-app-service.observability.svc.cluster.local:80/status || true
+            
+            # Generate some CPU load
+            dd if=/dev/zero of=/dev/null bs=1M count=10 2>/dev/null || true
+            
+            # Sleep for a random interval
+            sleep $((RANDOM % 5 + 1))
+          done
+        resources:
+          requests:
+            memory: 32Mi
+            cpu: 25m
+          limits:
+            memory: 64Mi
+            cpu: 50m
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: load-generator-service
+  namespace: observability
+  labels:
+    app: load-generator
+spec:
+  selector:
+    app: load-generator
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80 
