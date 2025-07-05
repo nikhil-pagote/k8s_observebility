@@ -253,9 +253,10 @@ impl ArgoCDDeployer {
         self.print_status("🎉 ArgoCD deployed successfully!", "green");
         self.print_status("", "white");
         self.print_status("📋 Next Steps:", "cyan");
-        self.print_status("   1. Access ArgoCD UI to manage applications", "white");
-        self.print_status("   2. Use port-forward command to access ArgoCD UI", "white");
-        self.print_status("   3. Create ArgoCD applications for your observability stack", "white");
+        self.print_status("   1. Access ArgoCD UI: http://localhost:443", "white");
+        self.print_status("      Port forwarding done by script already. if not working, use command:", "white");
+        self.print_status("      kubectl port-forward svc/argocd-server -n argocd 8080:443", "white");
+        self.print_status("   2. Create ArgoCD applications for your observability stack via the UI", "white");
         
         Ok(true)
     }

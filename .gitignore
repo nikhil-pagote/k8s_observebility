@@ -86,3 +86,6 @@ charts/*.tgz
 
 # Local configuration overrides
 config/local/ 
+/src-build/target
+/src-build/Cargo.lock
+/bin

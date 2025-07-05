@@ -223,22 +223,56 @@ impl KindClusterSetup {
 
     fn ensure_kind_kubeconfig(&self) -> Result<()> {
         self.print_status("🔧 Ensuring correct Kind kubeconfig...", "yellow");
-        // Overwrite ./kubeconfig with the correct Kind config
+        
+        // First, export kubeconfig to ensure we have the latest
+        self.run_command(&format!("kind export kubeconfig --name {}", self.cluster_name), false)?;
+        
+        // Then get the specific kubeconfig for our cluster
         #[cfg(target_os = "windows")]
         let copy_cmd = format!("kind get kubeconfig --name {} | Out-File -Encoding ascii ./kubeconfig", self.cluster_name);
         #[cfg(not(target_os = "windows"))]
         let copy_cmd = format!("kind get kubeconfig --name {} > ./kubeconfig", self.cluster_name);
         self.run_command(&copy_cmd, true)?;
+        
         // Set KUBECONFIG for this process
         env::set_var("KUBECONFIG", "./kubeconfig");
-        // Debug: Print the server line
+        
+        // Verify the kubeconfig is valid by checking the server endpoint
         let kubeconfig = fs::read_to_string("./kubeconfig")?;
+        let mut server_found = false;
         for line in kubeconfig.lines() {
             if line.trim().starts_with("server:") {
-                self.print_status(&format!("Kubeconfig server: {}", line), "cyan");
+                let server = line.trim();
+                self.print_status(&format!("📡 Kubeconfig server: {}", server), "cyan");
+                
+                // Check if server is using localhost or 127.0.0.1 (correct)
+                if server.contains("127.0.0.1") || server.contains("localhost") {
+                    server_found = true;
+                    self.print_status("✅ Server endpoint looks correct", "green");
+                } else if server.contains("0.0.0.0") {
+                    self.print_status("⚠️ Server endpoint uses 0.0.0.0, this might cause issues", "yellow");
+                    server_found = true;
+                }
             }
         }
-        self.print_status("✅ Kind kubeconfig set correctly", "green");
+        
+        if !server_found {
+            self.print_status("❌ Could not find server endpoint in kubeconfig", "red");
+            return Err(anyhow::anyhow!("Invalid kubeconfig: no server endpoint found"));
+        }
+        
+        // Test the connection
+        match self.run_command("kubectl cluster-info", false) {
+            Ok(_) => {
+                self.print_status("✅ Kubeconfig is valid and cluster is accessible", "green");
+            }
+            Err(e) => {
+                self.print_status(&format!("⚠️ Kubeconfig test failed: {}", e), "yellow");
+                self.print_status("This might be normal during cluster startup", "yellow");
+            }
+        }
+        
+        self.print_status("✅ Kind kubeconfig refreshed and set correctly", "green");
         Ok(())
     }
 
@@ -411,6 +445,10 @@ impl KindClusterSetup {
             
             // Install Helm
             self.install_helm().await?;
+            
+            // Final kubeconfig refresh to ensure it's completely up-to-date
+            self.print_status("🔄 Final kubeconfig refresh...", "yellow");
+            self.ensure_kind_kubeconfig()?;
             
             // Final verification
             self.print_status("🔍 Final cluster verification...", "yellow");
