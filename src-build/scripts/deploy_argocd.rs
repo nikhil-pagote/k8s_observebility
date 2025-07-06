@@ -1,7 +1,5 @@
 use std::process::Command;
 use std::time::Duration;
-use std::env;
-use std::path::Path;
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -13,29 +11,16 @@ use tokio::time::sleep;
 struct Args {
     #[arg(long, default_value = "argocd")]
     argocd_namespace: String,
-    
-    #[arg(long, default_value = "admin")]
-    argocd_admin_password: String,
 }
 
 struct ArgoCDDeployer {
     argocd_namespace: String,
-    argocd_admin_password: String,
-    kubeconfig_path: String,
 }
 
 impl ArgoCDDeployer {
-    fn new(argocd_namespace: String, argocd_admin_password: String) -> Self {
-        let kubeconfig_path = std::env::current_dir()
-            .unwrap_or_else(|_| Path::new(".").to_path_buf())
-            .join("kubeconfig")
-            .to_string_lossy()
-            .to_string();
-        
+    fn new(argocd_namespace: String) -> Self {
         Self {
             argocd_namespace,
-            argocd_admin_password,
-            kubeconfig_path,
         }
     }
 
@@ -61,9 +46,6 @@ impl ArgoCDDeployer {
             c.args(&["-c", command]);
             c
         };
-
-        // Always set KUBECONFIG environment variable for kubectl commands
-        cmd.env("KUBECONFIG", &self.kubeconfig_path);
 
         let output = cmd.output().context(format!("Failed to execute command: {}", command))?;
 
@@ -91,16 +73,9 @@ impl ArgoCDDeployer {
             }
         }
         
-        // Get the kubeconfig from kind and write it to our local file
-        let output = self.run_command("kind get kubeconfig --name observability-cluster", true)?;
-        let kubeconfig_content = String::from_utf8_lossy(&output.stdout);
-        
-        // Write the kubeconfig to file
-        std::fs::write(&self.kubeconfig_path, kubeconfig_content.as_bytes())
-            .context("Failed to write kubeconfig file")?;
-        
-        // Set KUBECONFIG environment variable for this process
-        env::set_var("KUBECONFIG", &self.kubeconfig_path);
+        // Export kubeconfig to default location and fix the server endpoint
+        self.run_command(&format!("kind export kubeconfig --name observability-cluster"), false)?;
+        self.run_command("kubectl config set-cluster kind-observability-cluster --server=https://127.0.0.1:6443", false)?;
         
         // Test the connection
         match self.run_command("kubectl cluster-info", false) {
@@ -173,8 +148,8 @@ impl ArgoCDDeployer {
         
         // Install ArgoCD using Helm chart
         let helm_command = format!(
-            "helm install argocd argo/argo-cd -n {} --create-namespace --set server.service.type=LoadBalancer --set server.adminPassword={}",
-            self.argocd_namespace, self.argocd_admin_password
+            "helm install argocd argo/argo-cd -n {} --create-namespace --set server.service.type=LoadBalancer",
+            self.argocd_namespace
         );
         self.run_command(&helm_command, true)?;
         
@@ -212,6 +187,106 @@ impl ArgoCDDeployer {
         Ok(())
     }
 
+    fn setup_port_forwarding(&self) -> Result<()> {
+        self.print_status("🔌 Setting up port forwarding for ArgoCD...", "yellow");
+        
+        // First, verify our kubeconfig is working
+        self.print_status("🔍 Verifying cluster connectivity...", "yellow");
+        match self.run_command("kubectl cluster-info", false) {
+            Ok(_) => {
+                self.print_status("✅ Cluster connectivity verified", "green");
+            }
+            Err(e) => {
+                self.print_status(&format!("❌ Cluster connectivity failed: {}", e), "red");
+                return Err(anyhow::anyhow!("Cannot connect to cluster: {}", e));
+            }
+        }
+        
+        // Check if ArgoCD namespace exists
+        match self.run_command("kubectl get namespace argocd", false) {
+            Ok(_) => {
+                self.print_status("✅ ArgoCD namespace found", "green");
+            }
+            Err(_) => {
+                self.print_status("❌ ArgoCD namespace not found. Please ensure ArgoCD is deployed first.", "red");
+                return Err(anyhow::anyhow!("ArgoCD namespace not found"));
+            }
+        }
+        
+        // Check if ArgoCD server service exists
+        match self.run_command("kubectl get svc -n argocd argocd-server", false) {
+            Ok(_) => {
+                self.print_status("✅ ArgoCD server service found", "green");
+            }
+            Err(_) => {
+                self.print_status("❌ ArgoCD server service not found. Please ensure ArgoCD is deployed first.", "red");
+                return Err(anyhow::anyhow!("ArgoCD server service not found"));
+            }
+        }
+        
+        // Check if ArgoCD server pod is running
+        match self.run_command("kubectl get pods -n argocd -l app.kubernetes.io/name=argocd-server --field-selector=status.phase=Running", false) {
+            Ok(_) => {
+                self.print_status("✅ ArgoCD server pod is running", "green");
+            }
+            Err(_) => {
+                self.print_status("❌ ArgoCD server pod not running. Please ensure ArgoCD is deployed and pods are ready.", "red");
+                return Err(anyhow::anyhow!("ArgoCD server pod not running"));
+            }
+        }
+        
+        // Kill any existing port forwarding on port 8080
+        self.print_status("🔧 Checking for existing port forwarding...", "yellow");
+        #[cfg(target_os = "windows")]
+        let kill_cmd = "Get-Process -Name kubectl -ErrorAction SilentlyContinue | Where-Object {$_.CommandLine -like '*port-forward*8080*'} | Stop-Process -Force -ErrorAction SilentlyContinue";
+        #[cfg(not(target_os = "windows"))]
+        let kill_cmd = "pkill -f 'kubectl.*port-forward.*8080' || true";
+        
+        self.run_command(kill_cmd, true).ok(); // Ignore errors here
+        
+        // Start port forwarding in background
+        let port_forward_cmd = "kubectl port-forward -n argocd svc/argocd-server 8080:443";
+        
+        #[cfg(target_os = "windows")]
+        let background_cmd = format!("Start-Process powershell -ArgumentList '-Command', '{}' -WindowStyle Hidden", port_forward_cmd);
+        #[cfg(not(target_os = "windows"))]
+        let background_cmd = format!("{} &", port_forward_cmd);
+        
+        match self.run_command(&background_cmd, true) {
+            Ok(_) => {
+                self.print_status("✅ Port forwarding started in background", "green");
+                self.print_status("🌐 ArgoCD UI will be available at: https://localhost:8080", "cyan");
+                self.print_status("🔑 Username: admin, Password: (retrieve with: kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath=\"{.data.password}\" | base64 -d)", "cyan");
+                
+                // Wait a moment for port forwarding to establish
+                std::thread::sleep(std::time::Duration::from_secs(2));
+                
+                // Test if port forwarding is working
+                self.print_status("🔍 Testing port forwarding...", "yellow");
+                #[cfg(target_os = "windows")]
+                let test_cmd = "Test-NetConnection -ComputerName localhost -Port 8080 -InformationLevel Quiet";
+                #[cfg(not(target_os = "windows"))]
+                let test_cmd = "nc -z localhost 8080";
+                
+                match self.run_command(test_cmd, true) {
+                    Ok(_) => {
+                        self.print_status("✅ Port forwarding is working correctly", "green");
+                    }
+                    Err(_) => {
+                        self.print_status("⚠️ Port forwarding test failed, but it might still be working", "yellow");
+                        self.print_status("Try accessing https://localhost:8080 in your browser", "yellow");
+                    }
+                }
+            }
+            Err(e) => {
+                self.print_status(&format!("❌ Failed to start port forwarding: {}", e), "red");
+                return Err(e);
+            }
+        }
+        
+        Ok(())
+    }
+
     fn get_service_urls(&self) -> Result<()> {
         self.print_status("🌐 Getting service URLs...", "yellow");
         
@@ -222,12 +297,12 @@ impl ArgoCDDeployer {
                 let ip = output_str.trim();
                 if !ip.is_empty() {
                     self.print_status(&format!("🔗 ArgoCD UI: https://{}:443", ip), "cyan");
-                    self.print_status(&format!("   Username: admin, Password: {}", self.argocd_admin_password), "white");
+                    self.print_status("   Username: admin, Password: (retrieve from secret)", "white");
                 }
             }
             Err(_) => {
                 self.print_status("🔗 ArgoCD UI: Use port-forward: kubectl port-forward svc/argocd-server -n argocd 8080:443", "cyan");
-                self.print_status(&format!("   Username: admin, Password: {}", self.argocd_admin_password), "white");
+                self.print_status("   Username: admin, Password: (retrieve from secret)", "white");
             }
         }
 
@@ -246,6 +321,9 @@ impl ArgoCDDeployer {
         // Install ArgoCD
         self.install_argocd().await?;
         
+        // Setup port forwarding
+        self.setup_port_forwarding()?;
+        
         // Get service URLs
         self.get_service_urls()?;
         
@@ -253,9 +331,9 @@ impl ArgoCDDeployer {
         self.print_status("🎉 ArgoCD deployed successfully!", "green");
         self.print_status("", "white");
         self.print_status("📋 Next Steps:", "cyan");
-        self.print_status("   1. Access ArgoCD UI: http://localhost:443", "white");
-        self.print_status("      Port forwarding done by script already. if not working, use command:", "white");
-        self.print_status("      kubectl port-forward svc/argocd-server -n argocd 8080:443", "white");
+        self.print_status("   1. Access ArgoCD UI: https://localhost:8080", "white");
+        self.print_status("      Port forwarding is already set up by the script", "white");
+        self.print_status("      If not working, manually run: kubectl port-forward svc/argocd-server -n argocd 8080:443", "white");
         self.print_status("   2. Create ArgoCD applications for your observability stack via the UI", "white");
         
         Ok(true)
@@ -268,7 +346,6 @@ async fn main() -> Result<()> {
     
     let deployer = ArgoCDDeployer::new(
         args.argocd_namespace,
-        args.argocd_admin_password,
     );
     
     let success = deployer.deploy().await?;

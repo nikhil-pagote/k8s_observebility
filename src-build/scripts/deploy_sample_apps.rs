@@ -1,4 +1,3 @@
-use std::env;
 use std::process::{Command, Stdio};
 
 use anyhow::{Context, Result};
@@ -225,13 +224,9 @@ spec:
     fn deploy(&self) -> Result<()> {
         self.print_status("🚀 Deploying Sample Applications", "green");
         
-        // Set KUBECONFIG
-        if std::path::Path::new("./kubeconfig").exists() {
-            env::set_var("KUBECONFIG", "./kubeconfig");
-        } else {
-            self.print_status("❌ Kubeconfig not found. Please run setup_kind_cluster first.", "red");
-            return Ok(());
-        }
+        // Ensure we're using the correct Kind context and fix the server endpoint
+        self.run_command("kind export kubeconfig --name observability-cluster", false)?;
+        self.run_command("kubectl config set-cluster kind-observability-cluster --server=https://127.0.0.1:6443", false)?;
         
         self.create_namespace()?;
         self.deploy_sample_app()?;

@@ -1,0 +1,138 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: opentelemetry-collector
+  namespace: argocd
+spec:
+  destination:
+    namespace: observability
+    server: https://kubernetes.default.svc
+  source:
+    repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+    chart: opentelemetry-collector
+    helm:
+      values: |
+        image:
+          repository: "otel/opentelemetry-collector-k8s"
+
+        mode: daemonset
+
+        config:
+          receivers:
+            # OTLP for application telemetry
+            otlp:
+              protocols:
+                grpc:
+                  endpoint: 0.0.0.0:4317
+                http:
+                  endpoint: 0.0.0.0:4318
+            # Node-level metrics collection (replaces Node Exporter)
+            hostmetrics:
+              collection_interval: 10s
+              scrapers:
+                cpu:
+                disk:
+                load:
+                memory:
+                network:
+                process:
+                processes:
+            # Kubernetes metrics collection
+            kubeletstats:
+              collection_interval: 10s
+              auth_type: serviceAccount
+              endpoint: "${env:NODE_NAME}:10250"
+            # Container logs collection
+            filelog:
+              include: [ /var/log/pods/*/*/*.log ]
+              start_at: end
+              operators:
+                - type: regex_parser
+                  regex: '^(?P<time>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z) (?P<severity>\w+) (?P<logger>\w+) (?P<message>.*)$'
+                  timestamp:
+                    parse_from: time
+                    layout: '2006-01-02T15:04:05.000Z'
+                - type: move
+                  from: severity
+                  to: log.severity
+                - type: move
+                  from: logger
+                  to: log.logger
+
+          processors:
+            batch:
+            memory_limiter:
+              check_interval: 1s
+              limit_mib: 1500
+            # Add resource attributes
+            resource:
+              attributes:
+                - key: host.name
+                  from_attribute: host.name
+                  action: insert
+                - key: k8s.node.name
+                  from_attribute: host.name
+                  action: insert
+            # Filter and transform metrics
+            filter:
+              metrics:
+                include:
+                  match_type: regexp
+                  resource_attributes:
+                    - key: service.name
+                      value: ".*"
+            # Add Kubernetes metadata
+            k8sattributes:
+              passthrough: false
+              filter:
+                node_from_env_var: KUBERNETES_NODE_NAME
+              extract:
+                metadata:
+                  - k8s.namespace.name
+                  - k8s.pod.name
+                  - k8s.container.name
+                  - k8s.deployment.name
+                  - k8s.service.name
+
+          exporters:
+            prometheus:
+              endpoint: "0.0.0.0:9464"
+            logging:
+              loglevel: debug
+            # For future: add Jaeger for traces, Loki for logs
+            # jaeger:
+            #   endpoint: jaeger-collector.observability.svc.cluster.local:14250
+            #   tls:
+            #     insecure: true
+            # loki:
+            #   endpoint: http://loki.observability.svc.cluster.local:3100/loki/api/v1/push
+
+          service:
+            pipelines:
+              traces:
+                receivers: [otlp]
+                processors: [batch, memory_limiter, k8sattributes]
+                exporters: [logging]
+              metrics:
+                receivers: [otlp, hostmetrics, kubeletstats]
+                processors: [batch, memory_limiter, resource, filter, k8sattributes]
+                exporters: [prometheus, logging]
+              logs:
+                receivers: [otlp, filelog]
+                processors: [batch, memory_limiter, k8sattributes]
+                exporters: [logging]
+
+        resources:
+          limits:
+            memory: 1Gi
+            cpu: 500m
+          requests:
+            memory: 512Mi
+            cpu: 250m
+  project: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true 

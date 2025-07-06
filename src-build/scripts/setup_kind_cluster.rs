@@ -1,13 +1,14 @@
 use std::env;
 use std::process::{Command, Stdio};
 use std::time::Duration;
-use std::fs;
+
 
 use anyhow::{Context, Result};
 use clap::Parser;
 use colored::*;
 use serde::{Deserialize, Serialize};
 use tokio::time::sleep;
+
 
 #[derive(Parser)]
 #[command(name = "setup_kind_cluster")]
@@ -16,8 +17,15 @@ struct Args {
     #[arg(long, default_value = "observability-cluster")]
     cluster_name: String,
     
-    #[arg(long, default_value = "v1.28.0")]
+    #[arg(long, default_value = "v1.33.1")]
     kubernetes_version: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Networking {
+    api_server_address: String,
+    api_server_port: u16,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -25,6 +33,7 @@ struct KindConfig {
     kind: String,
     #[serde(rename = "apiVersion")]
     api_version: String,
+    networking: Networking,
     nodes: Vec<KindNode>,
 }
 
@@ -168,6 +177,10 @@ impl KindClusterSetup {
         let config = KindConfig {
             kind: "Cluster".to_string(),
             api_version: "kind.x-k8s.io/v1alpha4".to_string(),
+            networking: Networking {
+                api_server_address: "127.0.0.1".to_string(),
+                api_server_port: 6443,
+            },
             nodes: vec![
                 KindNode {
                     role: "control-plane".to_string(),
@@ -175,9 +188,7 @@ impl KindClusterSetup {
                     kubeadm_config_patches: Some(vec![
                         "kind: InitConfiguration\nnodeRegistration:\n  kubeletExtraArgs:\n    node-labels: \"ingress-ready=true\"".to_string()
                     ]),
-                    extra_port_mappings: Some(vec![
-                        PortMapping { container_port: 6443, host_port: 6443, protocol: "TCP".to_string() },
-                    ]),
+                    extra_port_mappings: None,
                 },
                 KindNode {
                     role: "worker".to_string(),
@@ -200,6 +211,14 @@ impl KindClusterSetup {
         std::fs::write("./kind-config.yaml", &yaml)
             .context("Failed to write Kind config file")?;
         
+        // Debug: Print the configuration
+        self.print_status("📋 Kind configuration:", "cyan");
+        for line in yaml.lines() {
+            if line.trim().starts_with("- role:") || line.trim().starts_with("nodes:") {
+                self.print_status(&format!("   {}", line.trim()), "white");
+            }
+        }
+        
         self.print_status("✅ Kind configuration created", "green");
         Ok("./kind-config.yaml".to_string())
     }
@@ -209,72 +228,34 @@ impl KindClusterSetup {
         
         let command = format!("kind create cluster --name {} --config {}", self.cluster_name, config_path);
         
-        match self.run_command(&command, true) {
-            Ok(_) => {
-                self.print_status("✅ Kind cluster created successfully", "green");
-                Ok(true)
+        match self.run_command(&command, false) {
+            Ok(output) => {
+                if output.status.success() {
+                    self.print_status("✅ Kind cluster created successfully", "green");
+                    // Debug: Print the command output
+                    let stdout = String::from_utf8_lossy(&output.stdout);
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    if !stdout.trim().is_empty() {
+                        self.print_status(&format!("📋 Output: {}", stdout.trim()), "cyan");
+                    }
+                    if !stderr.trim().is_empty() {
+                        self.print_status(&format!("⚠️ Warnings: {}", stderr.trim()), "yellow");
+                    }
+                    Ok(true)
+                } else {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    self.print_status(&format!("❌ Failed to create Kind cluster: {}", stderr), "red");
+                    Ok(false)
+                }
             }
-            Err(_) => {
-                self.print_status("❌ Failed to create Kind cluster", "red");
+            Err(e) => {
+                self.print_status(&format!("❌ Failed to create Kind cluster: {}", e), "red");
                 Ok(false)
             }
         }
     }
 
-    fn ensure_kind_kubeconfig(&self) -> Result<()> {
-        self.print_status("🔧 Ensuring correct Kind kubeconfig...", "yellow");
-        
-        // First, export kubeconfig to ensure we have the latest
-        self.run_command(&format!("kind export kubeconfig --name {}", self.cluster_name), false)?;
-        
-        // Then get the specific kubeconfig for our cluster
-        #[cfg(target_os = "windows")]
-        let copy_cmd = format!("kind get kubeconfig --name {} | Out-File -Encoding ascii ./kubeconfig", self.cluster_name);
-        #[cfg(not(target_os = "windows"))]
-        let copy_cmd = format!("kind get kubeconfig --name {} > ./kubeconfig", self.cluster_name);
-        self.run_command(&copy_cmd, true)?;
-        
-        // Set KUBECONFIG for this process
-        env::set_var("KUBECONFIG", "./kubeconfig");
-        
-        // Verify the kubeconfig is valid by checking the server endpoint
-        let kubeconfig = fs::read_to_string("./kubeconfig")?;
-        let mut server_found = false;
-        for line in kubeconfig.lines() {
-            if line.trim().starts_with("server:") {
-                let server = line.trim();
-                self.print_status(&format!("📡 Kubeconfig server: {}", server), "cyan");
-                
-                // Check if server is using localhost or 127.0.0.1 (correct)
-                if server.contains("127.0.0.1") || server.contains("localhost") {
-                    server_found = true;
-                    self.print_status("✅ Server endpoint looks correct", "green");
-                } else if server.contains("0.0.0.0") {
-                    self.print_status("⚠️ Server endpoint uses 0.0.0.0, this might cause issues", "yellow");
-                    server_found = true;
-                }
-            }
-        }
-        
-        if !server_found {
-            self.print_status("❌ Could not find server endpoint in kubeconfig", "red");
-            return Err(anyhow::anyhow!("Invalid kubeconfig: no server endpoint found"));
-        }
-        
-        // Test the connection
-        match self.run_command("kubectl cluster-info", false) {
-            Ok(_) => {
-                self.print_status("✅ Kubeconfig is valid and cluster is accessible", "green");
-            }
-            Err(e) => {
-                self.print_status(&format!("⚠️ Kubeconfig test failed: {}", e), "yellow");
-                self.print_status("This might be normal during cluster startup", "yellow");
-            }
-        }
-        
-        self.print_status("✅ Kind kubeconfig refreshed and set correctly", "green");
-        Ok(())
-    }
+    
 
     async fn verify_cluster_setup(&self) -> Result<bool> {
         self.print_status("🔍 Verifying cluster setup...", "yellow");
@@ -434,40 +415,34 @@ impl KindClusterSetup {
             return Ok(false);
         }
         
-        // Always ensure correct kubeconfig after cluster creation
-        self.ensure_kind_kubeconfig()?;
         
-        // Verify cluster first
-        if self.verify_cluster_setup().await? {
-            // Always ensure correct kubeconfig after verification
-            self.ensure_kind_kubeconfig()?;
-            self.print_status("🎉 Kind cluster setup completed successfully!", "green");
             
+            if self.verify_cluster_setup().await? {
+            self.print_status("🎉 Kind cluster setup completed successfully!", "green");
+
             // Install Helm
             self.install_helm().await?;
-            
-            // Final kubeconfig refresh to ensure it's completely up-to-date
-            self.print_status("🔄 Final kubeconfig refresh...", "yellow");
-            self.ensure_kind_kubeconfig()?;
-            
+
             // Final verification
             self.print_status("🔍 Final cluster verification...", "yellow");
             match self.run_command("kubectl get nodes", false) {
                 Ok(_) => self.print_status("✅ Cluster is fully operational", "green"),
-                Err(_) => self.print_status("⚠️ Cluster verification failed, but continuing...", "yellow"),
+                Err(_) => {
+                    self.print_status("⚠️ Cluster verification failed, but continuing...", "yellow")
+                }
             }
-            
+
             self.print_status("", "white");
             self.print_status("📋 Cluster Information:", "cyan");
             self.print_status(&format!("   Cluster Name: {}", self.cluster_name), "white");
             self.print_status("   Nodes: 1 control-plane + 2 workers", "white");
-            self.print_status("   Kubeconfig: ./kubeconfig", "white");
+            self.print_status("   Kubeconfig: ~/.kube/config (default)", "white");
             self.print_status("", "white");
             self.print_status("🚀 Next Steps:", "cyan");
             self.print_status("   1. Run: .\\bin\\deploy_argocd.exe", "white");
             self.print_status("   2. Access Grafana: http://localhost:30000", "white");
             self.print_status("   3. Access Prometheus: http://localhost:30090", "white");
-            
+
             Ok(true)
         } else {
             self.print_status("❌ Cluster setup failed", "red");

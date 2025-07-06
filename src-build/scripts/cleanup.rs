@@ -1,4 +1,3 @@
-use std::env;
 use std::process::{Command, Stdio};
 
 use anyhow::{Context, Result};
@@ -62,47 +61,59 @@ impl Cleanup {
     fn uninstall_helm_releases(&self) -> Result<()> {
         self.print_status("📦 Uninstalling Helm releases...", "yellow");
         
-        if std::path::Path::new("./kubeconfig").exists() {
-            env::set_var("KUBECONFIG", "./kubeconfig");
-            
-            let releases = vec!["prometheus", "grafana", "opentelemetry"];
-            for release in releases {
-                let _ = self.run_command(&format!("helm uninstall {} -n {}", release, self.namespace), false);
-            }
-            
-            self.print_status("✅ Helm releases uninstalled", "green");
-        } else {
-            self.print_status("ℹ️  Kubeconfig not found, skipping Helm uninstall", "blue");
+        // Export kubeconfig to default location and fix the server endpoint
+        self.run_command(&format!("kind export kubeconfig --name {}", self.cluster_name), false).ok();
+        self.run_command(&format!("kubectl config set-cluster kind-{} --server=https://127.0.0.1:6443", self.cluster_name), false).ok();
+        
+        let releases = vec!["prometheus", "grafana", "opentelemetry"];
+        for release in releases {
+            let _ = self.run_command(&format!("helm uninstall {} -n {}", release, self.namespace), false);
         }
         
+        self.print_status("✅ Helm releases uninstalled", "green");
         Ok(())
     }
 
     fn remove_kubernetes_resources(&self) -> Result<()> {
         self.print_status("🗑️  Removing Kubernetes resources...", "yellow");
         
-        if std::path::Path::new("./kubeconfig").exists() {
-            env::set_var("KUBECONFIG", "./kubeconfig");
-            let _ = self.run_command(&format!("kubectl delete namespace {} --ignore-not-found=true", self.namespace), false);
-            self.print_status("✅ Kubernetes resources removed", "green");
-        } else {
-            self.print_status("ℹ️  Kubeconfig not found, skipping Kubernetes cleanup", "blue");
-        }
+        // Export kubeconfig to default location and fix the server endpoint
+        self.run_command(&format!("kind export kubeconfig --name {}", self.cluster_name), false).ok();
+        self.run_command(&format!("kubectl config set-cluster kind-{} --server=https://127.0.0.1:6443", self.cluster_name), false).ok();
+        let _ = self.run_command(&format!("kubectl delete namespace {} --ignore-not-found=true", self.namespace), false);
+        self.print_status("✅ Kubernetes resources removed", "green");
         
         Ok(())
     }
 
     fn remove_kind_cluster(&self) -> Result<()> {
         self.print_status(&format!("🛑 Deleting Kind cluster: {}", self.cluster_name), "yellow");
+        
+        // Delete the Kind cluster
         let _ = self.run_command(&format!("kind delete cluster --name {}", self.cluster_name), false);
         self.print_status("✅ Kind cluster deleted", "green");
+        
+        // Remove the cluster context from kubectl config
+        let context_name = format!("kind-{}", self.cluster_name);
+        self.print_status(&format!("🗑️  Removing kubectl context: {}", context_name), "yellow");
+        
+        // Remove the context
+        let _ = self.run_command(&format!("kubectl config delete-context {}", context_name), false);
+        
+        // Remove the cluster
+        let _ = self.run_command(&format!("kubectl config delete-cluster {}", context_name), false);
+        
+        // Remove the user
+        let _ = self.run_command(&format!("kubectl config delete-user {}", context_name), false);
+        
+        self.print_status("✅ Kubectl context removed", "green");
         Ok(())
     }
 
     fn remove_local_files(&self) -> Result<()> {
         self.print_status("🗑️  Removing local files...", "yellow");
         
-        let files_to_remove = vec!["./kubeconfig", "./helm.zip", "./kind-config.yaml"];
+        let files_to_remove = vec!["./helm.zip", "./kind-config.yaml"];
         for file in files_to_remove {
             if std::path::Path::new(file).exists() {
                 std::fs::remove_file(file)

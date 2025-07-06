@@ -145,17 +145,22 @@ This will create a `bin/` directory with the following executables:
    .\bin\deploy_argocd.exe
    ```
 
-4. **Access ArgoCD UI**:
+4. **Deploy ArgoCD**:
    ```powershell
-   kubectl port-forward svc/argocd-server -n argocd 8080:443
+   .\bin\deploy_argocd.exe
    ```
    
-   **Get the admin password**:
+   The script will automatically:
+   - Deploy ArgoCD using Helm
+   - Set up port forwarding to https://localhost:8080
+   - Display instructions for retrieving the admin password
+   
+   **Get the admin password** (run this command to retrieve the password):
    ```powershell
-   kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+   kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($input))
    ```
    
-   Then open https://localhost:8080 (Username: `admin`, Password: use the password from the secret above)
+   Then open https://localhost:8080 (Username: `admin`, Password: use the password from the command above)
 
 5. **Create Required Namespace** (if not exists):
    ```powershell
@@ -221,8 +226,8 @@ This will create a `bin/` directory with the following executables:
    
    **Start Port Forwarding Sessions** (run these in separate terminals):
    ```powershell
-   # ArgoCD UI (already running from step 4)
-   # kubectl port-forward svc/argocd-server -n argocd 8080:443
+   # ArgoCD UI (already running from deploy_argocd.exe script)
+   # Port forwarding is automatically set up by the script
    
    # Grafana (after ArgoCD deploys it)
    kubectl port-forward svc/kube-prometheus-stack-grafana -n observability 3000:80
@@ -235,7 +240,7 @@ This will create a `bin/` directory with the following executables:
    ```
    
    **Access URLs**:
-   - **ArgoCD UI**: https://localhost:8080 (Username: `admin`, Password: get from secret with `kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d`)
+   - **ArgoCD UI**: https://localhost:8080 (Username: `admin`, Password: get from secret with `kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($input))`)
    - **Grafana**: http://localhost:3000 (Username: `admin`, Password: `admin`)
    - **Prometheus**: http://localhost:9090
    - **Jaeger**: http://localhost:16686
@@ -431,6 +436,31 @@ docker info
 # - At least 8GB RAM allocated
 # - At least 4 CPU cores allocated
 # - Kubernetes disabled in Docker Desktop settings
+```
+
+#### 6. ArgoCD Issues
+
+**Problem**: ArgoCD deployment issues or need to completely remove ArgoCD.
+
+**Solution**: Manually uninstall ArgoCD using Helm and delete the namespace:
+```powershell
+# Uninstall ArgoCD Helm release
+helm uninstall argocd -n argocd
+
+# Delete the ArgoCD namespace (this removes all remaining resources)
+kubectl delete namespace argocd
+
+# Verify ArgoCD is completely removed
+kubectl get namespaces | grep argocd
+kubectl get pods -A | grep argocd
+```
+
+**Note**: The CustomResourceDefinitions (CRDs) for ArgoCD applications will be kept, which is normal and expected. If you want to completely remove everything, you can also delete the CRDs:
+```powershell
+# Optional: Remove ArgoCD CRDs (only if you want to completely remove everything)
+kubectl delete crd applications.argoproj.io
+kubectl delete crd applicationsets.argoproj.io
+kubectl delete crd appprojects.argoproj.io
 ```
 
 ### Getting Help
