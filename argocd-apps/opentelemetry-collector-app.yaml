@@ -3,132 +3,152 @@ kind: Application
 metadata:
   name: opentelemetry-collector
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  labels:
+    release: opentelemetry-collector
 spec:
   destination:
     namespace: observability
     server: https://kubernetes.default.svc
   source:
     repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+    targetRevision: 0.60.0
     chart: opentelemetry-collector
     helm:
       values: |
-        image:
-          repository: "otel/opentelemetry-collector-k8s"
-
-        mode: daemonset
-
+        mode: deployment
+        
+        service:
+          type: ClusterIP
+        
+        resources:
+          limits:
+            memory: 512Mi
+            cpu: 500m
+          requests:
+            memory: 256Mi
+            cpu: 250m
+        
         config:
           receivers:
-            # OTLP for application telemetry
             otlp:
               protocols:
                 grpc:
                   endpoint: 0.0.0.0:4317
                 http:
                   endpoint: 0.0.0.0:4318
-            # Node-level metrics collection (replaces Node Exporter)
-            hostmetrics:
-              collection_interval: 10s
-              scrapers:
-                cpu:
-                disk:
-                load:
-                memory:
-                network:
-                process:
-                processes:
-            # Kubernetes metrics collection
-            kubeletstats:
-              collection_interval: 10s
-              auth_type: serviceAccount
-              endpoint: "${env:NODE_NAME}:10250"
-            # Container logs collection
-            filelog:
-              include: [ /var/log/pods/*/*/*.log ]
-              start_at: end
-              operators:
-                - type: regex_parser
-                  regex: '^(?P<time>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z) (?P<severity>\w+) (?P<logger>\w+) (?P<message>.*)$'
-                  timestamp:
-                    parse_from: time
-                    layout: '2006-01-02T15:04:05.000Z'
-                - type: move
-                  from: severity
-                  to: log.severity
-                - type: move
-                  from: logger
-                  to: log.logger
-
+            prometheus:
+              config:
+                scrape_configs:
+                  - job_name: 'kubernetes-pods'
+                    kubernetes_sd_configs:
+                      - role: pod
+                    relabel_configs:
+                      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+                        action: keep
+                        regex: true
+                      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+                        action: replace
+                        target_label: __metrics_path__
+                        regex: (.+)
+                      - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+                        action: replace
+                        regex: ([^:]+)(?::\d+)?;(\d+)
+                        replacement: $1:$2
+                        target_label: __address__
+                      - action: labelmap
+                        regex: __meta_kubernetes_pod_label_(.+)
+                      - source_labels: [__meta_kubernetes_namespace]
+                        action: replace
+                        target_label: kubernetes_namespace
+                      - source_labels: [__meta_kubernetes_pod_name]
+                        action: replace
+                        target_label: kubernetes_pod_name
+                  - job_name: 'kubernetes-service-endpoints'
+                    kubernetes_sd_configs:
+                      - role: endpoints
+                    relabel_configs:
+                      - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
+                        action: keep
+                        regex: true
+                      - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scheme]
+                        action: replace
+                        target_label: __scheme__
+                        regex: (https?)
+                      - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+                        action: replace
+                        target_label: __metrics_path__
+                        regex: (.+)
+                      - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
+                        action: replace
+                        regex: ([^:]+)(?::\d+)?;(\d+)
+                        replacement: $1:$2
+                        target_label: __address__
+                      - action: labelmap
+                        regex: __meta_kubernetes_service_label_(.+)
+                      - source_labels: [__meta_kubernetes_namespace]
+                        action: replace
+                        target_label: kubernetes_namespace
+                      - source_labels: [__meta_kubernetes_service_name]
+                        action: replace
+                        target_label: kubernetes_name
+                  - job_name: 'kubernetes-nodes'
+                    kubernetes_sd_configs:
+                      - role: node
+                    relabel_configs:
+                      - action: labelmap
+                        regex: __meta_kubernetes_node_label_(.+)
+                      - source_labels: [__meta_kubernetes_node_name]
+                        action: replace
+                        target_label: kubernetes_node_name
+                    metrics_path: /metrics
+                    scheme: https
+                    tls_config:
+                      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+                      insecure_skip_verify: true
+                    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+          
           processors:
             batch:
+              timeout: 1s
+              send_batch_size: 1024
             memory_limiter:
               check_interval: 1s
               limit_mib: 1500
-            # Add resource attributes
             resource:
               attributes:
-                - key: host.name
-                  from_attribute: host.name
-                  action: insert
-                - key: k8s.node.name
-                  from_attribute: host.name
-                  action: insert
-            # Filter and transform metrics
-            filter:
-              metrics:
-                include:
-                  match_type: regexp
-                  resource_attributes:
-                    - key: service.name
-                      value: ".*"
-            # Add Kubernetes metadata
-            k8sattributes:
-              passthrough: false
-              filter:
-                node_from_env_var: KUBERNETES_NODE_NAME
-              extract:
-                metadata:
-                  - k8s.namespace.name
-                  - k8s.pod.name
-                  - k8s.container.name
-                  - k8s.deployment.name
-                  - k8s.service.name
-
+                - key: k8s.cluster.name
+                  value: "observability-cluster"
+                  action: upsert
+          
           exporters:
             prometheus:
               endpoint: "0.0.0.0:9464"
+              namespace: "observability"
+              const_labels:
+                label1: value1
+              send_timestamps: true
+              metric_expiration: 180m
+              enable_open_metrics: true
+              add_metric_suffixes: false
             logging:
-              loglevel: debug
-            # For future: add Jaeger for traces, Loki for logs
-            # jaeger:
-            #   endpoint: jaeger-collector.observability.svc.cluster.local:14250
-            #   tls:
-            #     insecure: true
-            # loki:
-            #   endpoint: http://loki.observability.svc.cluster.local:3100/loki/api/v1/push
-
+              verbosity: detailed
+          
           service:
             pipelines:
               traces:
                 receivers: [otlp]
-                processors: [batch, memory_limiter, k8sattributes]
+                processors: [batch, memory_limiter, resource]
                 exporters: [logging]
               metrics:
-                receivers: [otlp, hostmetrics, kubeletstats]
-                processors: [batch, memory_limiter, resource, filter, k8sattributes]
+                receivers: [otlp, prometheus]
+                processors: [batch, memory_limiter, resource]
                 exporters: [prometheus, logging]
               logs:
-                receivers: [otlp, filelog]
-                processors: [batch, memory_limiter, k8sattributes]
+                receivers: [otlp]
+                processors: [batch, memory_limiter, resource]
                 exporters: [logging]
-
-        resources:
-          limits:
-            memory: 1Gi
-            cpu: 500m
-          requests:
-            memory: 512Mi
-            cpu: 250m
   project: default
   syncPolicy:
     automated:

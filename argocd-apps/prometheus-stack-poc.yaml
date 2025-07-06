@@ -1,0 +1,235 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prometheus-stack-poc
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/description: "POC Prometheus Stack with production security"
+  labels:
+    app.kubernetes.io/part-of: observability-stack
+    app.kubernetes.io/component: monitoring
+    environment: poc
+    team: platform
+spec:
+  destination:
+    namespace: observability
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    targetRevision: 75.7.0
+    chart: kube-prometheus-stack
+    helm:
+      skipCrds: true  # CRDs managed separately
+      values: |
+        # Completely disable problematic components only
+        kubelet:
+          enabled: false
+        kubeApiServer:
+          enabled: false
+        kubeControllerManager:
+          enabled: false
+        kubeScheduler:
+          enabled: false
+        kubeProxy:
+          enabled: false
+        nodeExporter:
+          enabled: false
+        etcd:
+          enabled: false
+        
+        # Explicitly enable Prometheus and Alertmanager
+        prometheus:
+          enabled: true
+        alertmanager:
+          enabled: true
+        
+        # Disable problematic rules but keep essential ones
+        defaultRules:
+          create: true
+          rules:
+            alertmanager: true
+            configReloader: true
+            etcd: false
+            kubeApiserverAvailability: false
+            kubeApiserverBurnrate: false
+            kubeApiserverHistogram: false
+            kubeApiserverSlos: false
+            kubeControllerManager: false
+            kubelet: false
+            kubeProxy: false
+            kubePrometheusGeneral: true
+            kubePrometheusNodeRecording: false
+            kubeScheduler: false
+            kubeStateMetrics: true
+            namespaceByPod: true
+            namespaceByWorkload: true
+            node: false
+            prometheus: true
+            prometheusOperator: true
+        
+        # Disable additional ServiceMonitors
+        additionalServiceMonitors: []
+        additionalPodMonitors: []
+        
+        # Prometheus Operator Configuration
+        prometheusOperator:
+          createCustomResource: false
+          enabled: true
+          resources:
+            limits:
+              memory: 512Mi
+              cpu: 500m
+            requests:
+              memory: 256Mi
+              cpu: 250m
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            fsGroup: 65534
+          podSecurityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            fsGroup: 65534
+        
+        # Grafana Configuration (POC-optimized)
+        grafana:
+          adminPassword: admin123  # Change for production
+          service:
+            type: ClusterIP
+          ingress:
+            enabled: false  # Disable ingress for POC, use port-forward instead
+          persistence:
+            enabled: true
+            size: 20Gi  # POC storage size
+          resources:
+            limits:
+              memory: 1Gi
+              cpu: 1000m
+            requests:
+              memory: 512Mi
+              cpu: 500m
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 472
+            fsGroup: 472
+          # Basic POC dashboards
+          dashboardProviders:
+            dashboardproviders.yaml:
+              apiVersion: 1
+              providers:
+                - name: 'kubernetes'
+                  orgId: 1
+                  folder: 'Kubernetes'
+                  type: file
+                  disableDeletion: false
+                  editable: true
+                  options:
+                    path: /var/lib/grafana/dashboards/kubernetes
+          dashboards:
+            kubernetes:
+              kubernetes-cluster: {gnetId: 7249, revision: 1, datasource: Prometheus}
+              kubernetes-pods: {gnetId: 6417, revision: 1, datasource: Prometheus}
+
+        # Prometheus Configuration (POC-optimized)
+        prometheus:
+          prometheusSpec:
+            retention: 15d  # POC retention
+            resources:
+              limits:
+                memory: 2Gi
+                cpu: 1000m
+              requests:
+                memory: 1Gi
+                cpu: 500m
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 30Gi  # POC storage size
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 65534
+              fsGroup: 65534
+            # Basic scrape configs for POC
+            additionalScrapeConfigs:
+              - job_name: 'kubernetes-service-endpoints'
+                kubernetes_sd_configs:
+                  - role: endpoints
+                relabel_configs:
+                  - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
+                    action: keep
+                    regex: true
+                  - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+                    action: replace
+                    target_label: __metrics_path__
+                    regex: (.+)
+                  - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
+                    action: replace
+                    regex: ([^:]+)(?::\d+)?;(\d+)
+                    replacement: $1:$2
+                    target_label: __address__
+
+        # Alertmanager Configuration (Basic POC)
+        alertmanager:
+          alertmanagerSpec:
+            storage:
+              volumeClaimTemplate:
+                spec:
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 5Gi
+            resources:
+              limits:
+                memory: 256Mi
+                cpu: 250m
+              requests:
+                memory: 128Mi
+                cpu: 125m
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 65534
+              fsGroup: 65534
+            # Basic POC alerting
+            config:
+              global:
+                resolve_timeout: 5m
+              route:
+                group_by: ['alertname']
+                group_wait: 10s
+                group_interval: 10s
+                repeat_interval: 1h
+                receiver: 'web.hook'
+              receivers:
+                - name: 'web.hook'
+                  webhook_configs:
+                    - url: 'http://127.0.0.1:5001/'
+
+        # Keep only essential components
+        kubeStateMetrics:
+          enabled: true
+          resources:
+            limits:
+              memory: 128Mi
+              cpu: 100m
+            requests:
+              memory: 64Mi
+              cpu: 50m
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 2m 

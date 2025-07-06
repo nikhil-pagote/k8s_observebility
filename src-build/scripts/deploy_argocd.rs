@@ -148,7 +148,7 @@ impl ArgoCDDeployer {
         
         // Install ArgoCD using Helm chart
         let helm_command = format!(
-            "helm install argocd argo/argo-cd -n {} --create-namespace --set server.service.type=LoadBalancer",
+            "helm install argocd argo/argo-cd -n {} --create-namespace --set server.service.type=LoadBalancer --set server.metrics.enabled=true --set controller.metrics.enabled=true --set redis.metrics.enabled=false",
             self.argocd_namespace
         );
         self.run_command(&helm_command, true)?;
