@@ -22,6 +22,12 @@ spec:
         service:
           type: ClusterIP
         
+        # ServiceAccount Configuration for Kubernetes scraping
+        serviceAccount:
+          create: true
+          name: opentelemetry-collector
+          annotations: {}
+        
         resources:
           limits:
             memory: 512Mi
@@ -41,6 +47,7 @@ spec:
             prometheus:
               config:
                 scrape_configs:
+                  # Kubernetes Pods with Prometheus annotations
                   - job_name: 'kubernetes-pods'
                     kubernetes_sd_configs:
                       - role: pod
@@ -65,6 +72,8 @@ spec:
                       - source_labels: [__meta_kubernetes_pod_name]
                         action: replace
                         target_label: kubernetes_pod_name
+                  
+                  # Kubernetes Service Endpoints with Prometheus annotations
                   - job_name: 'kubernetes-service-endpoints'
                     kubernetes_sd_configs:
                       - role: endpoints
@@ -93,6 +102,8 @@ spec:
                       - source_labels: [__meta_kubernetes_service_name]
                         action: replace
                         target_label: kubernetes_name
+                  
+                  # Kubernetes Nodes (system metrics)
                   - job_name: 'kubernetes-nodes'
                     kubernetes_sd_configs:
                       - role: node
@@ -108,6 +119,68 @@ spec:
                       ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
                       insecure_skip_verify: true
                     bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+                  
+                  # CoreDNS metrics
+                  - job_name: 'coredns'
+                    kubernetes_sd_configs:
+                      - role: endpoints
+                    relabel_configs:
+                      - source_labels: [__meta_kubernetes_service_name]
+                        action: keep
+                        regex: kube-dns
+                      - source_labels: [__meta_kubernetes_endpoint_port_name]
+                        action: keep
+                        regex: metrics
+                      - action: labelmap
+                        regex: __meta_kubernetes_service_label_(.+)
+                      - source_labels: [__meta_kubernetes_namespace]
+                        action: replace
+                        target_label: kubernetes_namespace
+                      - source_labels: [__meta_kubernetes_service_name]
+                        action: replace
+                        target_label: kubernetes_name
+                  
+                  # Grafana metrics
+                  - job_name: 'grafana'
+                    kubernetes_sd_configs:
+                      - role: endpoints
+                    relabel_configs:
+                      - source_labels: [__meta_kubernetes_service_name]
+                        action: keep
+                        regex: prometheus-stack-poc-grafana
+                      - source_labels: [__meta_kubernetes_endpoint_port_name]
+                        action: keep
+                        regex: http
+                      - action: labelmap
+                        regex: __meta_kubernetes_service_label_(.+)
+                      - source_labels: [__meta_kubernetes_namespace]
+                        action: replace
+                        target_label: kubernetes_namespace
+                      - source_labels: [__meta_kubernetes_service_name]
+                        action: replace
+                        target_label: kubernetes_name
+                    metrics_path: /metrics
+                  
+                  # Alertmanager metrics
+                  - job_name: 'alertmanager'
+                    kubernetes_sd_configs:
+                      - role: endpoints
+                    relabel_configs:
+                      - source_labels: [__meta_kubernetes_service_name]
+                        action: keep
+                        regex: prometheus-stack-poc-kube-alertmanager
+                      - source_labels: [__meta_kubernetes_endpoint_port_name]
+                        action: keep
+                        regex: web
+                      - action: labelmap
+                        regex: __meta_kubernetes_service_label_(.+)
+                      - source_labels: [__meta_kubernetes_namespace]
+                        action: replace
+                        target_label: kubernetes_namespace
+                      - source_labels: [__meta_kubernetes_service_name]
+                        action: replace
+                        target_label: kubernetes_name
+                    metrics_path: /metrics
           
           processors:
             batch:
@@ -154,4 +227,46 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
-      - CreateNamespace=true 
+      - CreateNamespace=true
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: opentelemetry-collector
+  labels:
+    app.kubernetes.io/name: opentelemetry-collector
+    app.kubernetes.io/instance: opentelemetry-collector
+    app.kubernetes.io/part-of: observability-stack
+    app.kubernetes.io/managed-by: argocd
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "endpoints", "nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["extensions"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: opentelemetry-collector
+  labels:
+    app.kubernetes.io/name: opentelemetry-collector
+    app.kubernetes.io/instance: opentelemetry-collector
+    app.kubernetes.io/part-of: observability-stack
+    app.kubernetes.io/managed-by: argocd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: opentelemetry-collector
+subjects:
+  - kind: ServiceAccount
+    name: opentelemetry-collector
+    namespace: observability 
