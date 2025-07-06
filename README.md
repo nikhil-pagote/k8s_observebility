@@ -167,23 +167,39 @@ This will create a `bin/` directory with the following executables:
    kubectl create namespace observability
    ```
 
-6. **Deploy Observability Stack** (Fully Automated):
-   
-   Apply the ApplicationSet that automatically creates all applications in the correct order:
+6. **Deploy Observability Stack**:
+
+   Apply each ArgoCD application manually in the following order:
    ```powershell
-   kubectl apply -f argocd-apps/applicationset.yaml
+   kubectl apply -f argocd-apps/prometheus-crds-app.yaml
+   kubectl apply -f argocd-apps/prometheus-stack-app.yaml
+   kubectl apply -f argocd-apps/opentelemetry-collector-app.yaml
    ```
-   
-   This will create:
-   - **CRDs Application** (syncWave 0): Installs required Custom Resource Definitions using `prometheus-crds-values.yaml`
-   - **Prometheus Stack Application** (syncWave 1): Deploys Prometheus + Grafana using `prometheus-stack-values.yaml`
-   - **OpenTelemetry Collector Application** (syncWave 2): Deploys OpenTelemetry Collector using `opentelemetry-values.yaml`
-   
-   **Option B: Manual Application Creation (via UI)**
-   
+
+   **Option B: Create Applications via the ArgoCD UI**
+
    If you prefer manual creation, create applications in this order:
-   
-   **A. Create Prometheus Stack Application:**
+
+   **A. Create Prometheus CRDs Application:**
+   - Navigate to https://localhost:8080
+   - Click **"New App"**
+   - **General Settings**:
+     - Application Name: `prometheus-crds`
+     - Project: `default`
+   - **Source Settings**:
+     - Repository URL: `https://prometheus-community.github.io/helm-charts`
+     - Chart: `kube-prometheus-stack`
+     - Version: `45.0.0`
+   - **Destination Settings**:
+     - Cluster: `https://kubernetes.default.svc`
+     - Namespace: `observability`
+   - **Sync Policy**:
+     - ✅ Enable auto-sync
+     - ✅ Self Heal
+     - ✅ Prune
+   - Click **"Create"**
+
+   **B. Create Prometheus Stack Application:**
    - Navigate to https://localhost:8080
    - Click **"New App"**
    - **General Settings**:
@@ -200,10 +216,9 @@ This will create a `bin/` directory with the following executables:
      - ✅ Enable auto-sync
      - ✅ Self Heal
      - ✅ Prune
-   - **Value File**: Use the content from `argocd-apps/prometheus-stack-values.yaml`
    - Click **"Create"**
    
-   **B. Create OpenTelemetry Collector Application:**
+   **C. Create OpenTelemetry Collector Application:**
    - Click **"New App"** again
    - **General Settings**:
      - Application Name: `opentelemetry-collector`
@@ -219,7 +234,6 @@ This will create a `bin/` directory with the following executables:
      - ✅ Enable auto-sync
      - ✅ Self Heal
      - ✅ Prune
-   - **Value File**: Use the content from `argocd-apps/opentelemetry-values.yaml`
    - Click **"Create"**
 
 7. **Access Dashboards** (after creating ArgoCD applications):
@@ -262,10 +276,9 @@ k8s_observebility/
 │       └── cleanup.rs
 ├── bin/                      # Compiled executables (generated)
 ├── argocd-apps/
-│   ├── applicationset.yaml              # Automated deployment of all applications
-│   ├── prometheus-crds-values.yaml      # CRDs-only configuration
-│   ├── prometheus-stack-values.yaml     # Prometheus Stack configuration
-│   └── opentelemetry-values.yaml        # OpenTelemetry Collector configuration
+│   ├── prometheus-crds-app.yaml
+│   ├── prometheus-stack-app.yaml
+│   └── opentelemetry-collector-app.yaml
 ├── helm-chart/
 │   ├── Chart.yaml
 │   ├── values.yaml
@@ -282,12 +295,12 @@ k8s_observebility/
 ## Features
 
 - **Multi-node Kind Cluster**: 1 control-plane + 2 worker nodes
-- **ArgoCD**: GitOps continuous deployment tool with ApplicationSet automation
+- **ArgoCD**: GitOps continuous deployment tool
 - **OpenTelemetry-Centric Architecture**: Single collection point for all telemetry data
 - **OpenTelemetry Collector**: Collects metrics, logs, and traces with rich Kubernetes metadata
 - **Prometheus**: Metrics storage and querying (scrapes from OpenTelemetry)
 - **Grafana**: Visualization and dashboards
-- **Automated Deployment**: ApplicationSet ensures proper deployment order (CRDs → Prometheus → OpenTelemetry)
+- **Manual Deployment**: Apply ArgoCD applications in order (CRDs → Prometheus → OpenTelemetry)
 - **Sample Applications**: For testing observability
 - **Load Generator**: To simulate traffic and metrics
 
@@ -296,7 +309,7 @@ k8s_observebility/
 1. Deploy the Kind cluster using the provided Rust binaries
 2. Deploy ArgoCD using the simplified script
 3. Create the observability namespace
-4. Deploy the complete observability stack using ApplicationSet
+4. Deploy the observability stack by applying the ArgoCD applications in order
 5. Deploy sample applications to generate metrics
 6. Configure dashboards and alerts
 7. Monitor and analyze the observability data
