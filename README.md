@@ -106,9 +106,7 @@ k8s_observebility/
 │   ├── load-generator/
 │   │   └── deployment.yaml
 │   └── sample-app/
-│       ├── deployment.yaml
-│       ├── servicemonitor-test.yaml
-│       └── kube-state-metrics-servicemonitor.yaml
+│       └── deployment-basic.yaml
 ├── argocd-apps/                   # ArgoCD application manifests
 │   ├── opentelemetry-collector-app.yaml  # OTel (Sync Wave 2)
 │   └── prometheus-stack-app.yaml  # Prometheus/Grafana (Sync Wave 3)
@@ -117,7 +115,7 @@ k8s_observebility/
 │   └── scripts/
 │       ├── setup_kind_cluster.rs
 │       ├── deploy_argocd.rs
-│       ├── deploy_sample_apps.rs
+│       ├── deploy_observability_stack.rs
 │       └── cleanup.rs
 ├── bin/                          # Compiled binaries (generated)
 ├── deploy.ps1                    # PowerShell deployment script

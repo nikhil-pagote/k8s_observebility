@@ -127,10 +127,258 @@ spec:
                   editable: true
                   options:
                     path: /var/lib/grafana/dashboards/kubernetes
+                - name: 'custom'
+                  orgId: 1
+                  folder: 'Custom'
+                  type: file
+                  disableDeletion: false
+                  editable: true
+                  options:
+                    path: /var/lib/grafana/dashboards/custom
           dashboards:
             kubernetes:
+              # Core Kubernetes Dashboards
               kubernetes-cluster: {gnetId: 7249, revision: 1, datasource: Prometheus}
               kubernetes-pods: {gnetId: 6417, revision: 1, datasource: Prometheus}
+              kubernetes-nodes: {gnetId: 6418, revision: 1, datasource: Prometheus}
+              kubernetes-services: {gnetId: 6419, revision: 1, datasource: Prometheus}
+              
+              # Prometheus & Monitoring Dashboards
+              prometheus-overview: {gnetId: 3662, revision: 1, datasource: Prometheus}
+              prometheus-targets: {gnetId: 3663, revision: 1, datasource: Prometheus}
+              alertmanager: {gnetId: 3664, revision: 1, datasource: Prometheus}
+              
+              # Application & Workload Dashboards
+              kubernetes-workloads: {gnetId: 6420, revision: 1, datasource: Prometheus}
+              kubernetes-namespace: {gnetId: 6421, revision: 1, datasource: Prometheus}
+              
+              # Infrastructure Dashboards
+              node-exporter: {gnetId: 1860, revision: 1, datasource: Prometheus}
+              kubernetes-persistent-volumes: {gnetId: 6422, revision: 1, datasource: Prometheus}
+            
+            # Custom Application Dashboards
+            custom:
+              sample-app-dashboard: |
+                {
+                  "annotations": {
+                    "list": [
+                      {
+                        "builtIn": 1,
+                        "datasource": {
+                          "type": "grafana",
+                          "uid": "-- Grafana --"
+                        },
+                        "enable": true,
+                        "hide": true,
+                        "iconColor": "rgba(0, 211, 255, 1)",
+                        "name": "Annotations & Alerts",
+                        "type": "dashboard"
+                      }
+                    ]
+                  },
+                  "editable": true,
+                  "fiscalYearStartMonth": 0,
+                  "graphTooltip": 0,
+                  "id": null,
+                  "links": [],
+                  "liveNow": false,
+                  "panels": [
+                    {
+                      "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                      },
+                      "fieldConfig": {
+                        "defaults": {
+                          "color": {
+                            "mode": "palette-classic"
+                          },
+                          "custom": {
+                            "axisLabel": "",
+                            "axisPlacement": "auto",
+                            "barAlignment": 0,
+                            "drawStyle": "line",
+                            "fillOpacity": 10,
+                            "gradientMode": "none",
+                            "hideFrom": {
+                              "legend": false,
+                              "tooltip": false,
+                              "vis": false
+                            },
+                            "lineInterpolation": "linear",
+                            "lineWidth": 1,
+                            "pointSize": 5,
+                            "scaleDistribution": {
+                              "type": "linear"
+                            },
+                            "showPoints": "never",
+                            "spanNulls": false,
+                            "stacking": {
+                              "group": "A",
+                              "mode": "none"
+                            },
+                            "thresholdsStyle": {
+                              "mode": "off"
+                            }
+                          },
+                          "mappings": [],
+                          "thresholds": {
+                            "mode": "absolute",
+                            "steps": [
+                              {
+                                "color": "green",
+                                "value": null
+                              },
+                              {
+                                "color": "red",
+                                "value": 80
+                              }
+                            ]
+                          },
+                          "unit": "short"
+                        },
+                        "overrides": []
+                      },
+                      "gridPos": {
+                        "h": 8,
+                        "w": 12,
+                        "x": 0,
+                        "y": 0
+                      },
+                      "id": 1,
+                      "options": {
+                        "legend": {
+                          "calcs": [],
+                          "displayMode": "list",
+                          "placement": "bottom"
+                        },
+                        "tooltip": {
+                          "mode": "single",
+                          "sort": "none"
+                        }
+                      },
+                      "targets": [
+                        {
+                          "datasource": {
+                            "type": "prometheus",
+                            "uid": "prometheus"
+                          },
+                          "expr": "kube_pod_status_phase{namespace=\"observability\", pod=~\".*sample-app.*\"}",
+                          "refId": "A"
+                        }
+                      ],
+                      "title": "Sample App Pod Status",
+                      "type": "timeseries"
+                    },
+                    {
+                      "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                      },
+                      "fieldConfig": {
+                        "defaults": {
+                          "color": {
+                            "mode": "palette-classic"
+                          },
+                          "custom": {
+                            "axisLabel": "",
+                            "axisPlacement": "auto",
+                            "barAlignment": 0,
+                            "drawStyle": "line",
+                            "fillOpacity": 10,
+                            "gradientMode": "none",
+                            "hideFrom": {
+                              "legend": false,
+                              "tooltip": false,
+                              "vis": false
+                            },
+                            "lineInterpolation": "linear",
+                            "lineWidth": 1,
+                            "pointSize": 5,
+                            "scaleDistribution": {
+                              "type": "linear"
+                            },
+                            "showPoints": "never",
+                            "spanNulls": false,
+                            "stacking": {
+                              "group": "A",
+                              "mode": "none"
+                            },
+                            "thresholdsStyle": {
+                              "mode": "off"
+                            }
+                          },
+                          "mappings": [],
+                          "thresholds": {
+                            "mode": "absolute",
+                            "steps": [
+                              {
+                                "color": "green",
+                                "value": null
+                              },
+                              {
+                                "color": "red",
+                                "value": 80
+                              }
+                            ]
+                          },
+                          "unit": "short"
+                        },
+                        "overrides": []
+                      },
+                      "gridPos": {
+                        "h": 8,
+                        "w": 12,
+                        "x": 12,
+                        "y": 0
+                      },
+                      "id": 2,
+                      "options": {
+                        "legend": {
+                          "calcs": [],
+                          "displayMode": "list",
+                          "placement": "bottom"
+                        },
+                        "tooltip": {
+                          "mode": "single",
+                          "sort": "none"
+                        }
+                      },
+                      "targets": [
+                        {
+                          "datasource": {
+                            "type": "prometheus",
+                            "uid": "prometheus"
+                          },
+                          "expr": "kube_pod_container_resource_requests_cpu_cores{namespace=\"observability\", pod=~\".*sample-app.*\"}",
+                          "refId": "A"
+                        }
+                      ],
+                      "title": "Sample App CPU Usage",
+                      "type": "timeseries"
+                    }
+                  ],
+                  "refresh": "5s",
+                  "schemaVersion": 38,
+                  "style": "dark",
+                  "tags": [
+                    "sample-app",
+                    "kubernetes"
+                  ],
+                  "templating": {
+                    "list": []
+                  },
+                  "time": {
+                    "from": "now-1h",
+                    "to": "now"
+                  },
+                  "timepicker": {},
+                  "timezone": "",
+                  "title": "Sample Application Dashboard",
+                  "uid": "sample-app-dashboard",
+                  "version": 1,
+                  "weekStart": ""
+                }
 
         # Prometheus Configuration (POC-optimized)
         prometheus:
