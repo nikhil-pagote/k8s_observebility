@@ -6,7 +6,6 @@ metadata:
   namespace: argocd
 
 resources:
-- crds-poc-app.yaml
 - opentelemetry-collector-app.yaml
 - prometheus-stack-poc.yaml
 - grafana-dashboards/argo-cd.yaml

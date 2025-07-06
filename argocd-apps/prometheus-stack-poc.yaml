@@ -21,7 +21,7 @@ spec:
     targetRevision: 75.7.0
     chart: kube-prometheus-stack
     helm:
-      skipCrds: true  # CRDs managed separately
+      skipCrds: false  # Let Helm manage CRDs for POC
       values: |
         # Completely disable problematic components only
         kubelet:
@@ -75,7 +75,7 @@ spec:
         
         # Prometheus Operator Configuration
         prometheusOperator:
-          createCustomResource: false
+          createCustomResource: true
           enabled: true
           resources:
             limits:
