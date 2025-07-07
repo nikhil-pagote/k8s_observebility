@@ -1,7 +1,7 @@
 # Kubernetes Observability Stack Makefile
 # This Makefile provides convenient commands for managing the observability stack
 
-.PHONY: help setup-cluster deploy-argocd deploy-stack deploy-stack-manual deploy-sample-apps cleanup clean-all build-scripts status logs
+.PHONY: help setup-cluster deploy-argocd deploy-stack deploy-sample-apps cleanup clean-all build-scripts status logs
 
 # Default target
 help:
@@ -12,7 +12,7 @@ help:
 	@echo "  setup-cluster      - Create and configure Kind cluster"
 	@echo "  deploy-argocd      - Deploy ArgoCD to the cluster"
 	@echo "  deploy-stack       - Deploy observability stack via ArgoCD"
-	@echo "  deploy-stack-manual- Deploy stack with manual CRD installation"
+	@echo "  deploy-stack       - Deploy observability stack via ArgoCD"
 	@echo "  deploy-sample-apps - Deploy sample applications for testing"
 	@echo "  build-scripts      - Build Rust deployment scripts using Docker"
 	@echo "  status            - Show status of all components"
@@ -41,7 +41,7 @@ deploy-stack: check-binaries
 	@echo "✅ Observability stack deployment complete"
 
 # Deploy observability stack with manual CRD installation
-deploy-stack-manual: check-binaries
+deploy-stack: check-binaries
 	@echo "🚀 Deploying observability stack with manual CRD installation..."
 	./bin/deploy_observability_stack --install-crds-manually
 	@echo "✅ Observability stack deployment complete"
@@ -135,7 +135,7 @@ clean-all:
 	@echo "✅ Complete cleanup finished"
 
 # Quick start - setup everything
-quick-start: setup-cluster deploy-argocd deploy-stack-manual deploy-sample-apps
+quick-start: setup-cluster deploy-argocd deploy-stack deploy-sample-apps
 	@echo "🎉 Quick start complete! Your observability stack is ready."
 
 # Development workflow
@@ -143,7 +143,7 @@ dev-setup: check-prereqs build-scripts setup-cluster deploy-argocd
 	@echo "🔧 Development environment ready"
 
 # Production deployment
-prod-deploy: deploy-stack-manual
+prod-deploy: deploy-stack
 	@echo "🚀 Production deployment complete"
 
 # Check prerequisites

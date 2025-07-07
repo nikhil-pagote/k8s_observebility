@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: observability-stack
+  namespace: argocd
+
+resources:
+  - prometheus-stack-app.yaml
+  - jaeger-app.yaml
+  - opentelemetry-collector-app.yaml
+  - clickhouse-app.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: observability-stack
+      app.kubernetes.io/managed-by: argocd 

@@ -6,7 +6,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "2"
   labels:
-    release: opentelemetry-collector
+    app.kubernetes.io/part-of: observability-stack
 spec:
   destination:
     namespace: observability
@@ -206,13 +206,21 @@ spec:
               enable_open_metrics: true
             logging:
               verbosity: detailed
+            jaeger:
+              endpoint: "jaeger-collector.observability.svc.cluster.local:14250"
+              tls:
+                insecure: true
+            otlphttp:
+              endpoint: "http://clickhouse-hdx-oss-v2-app.observability.svc.cluster.local:3000"
+              headers:
+                "Content-Type": "application/json"
           
           service:
             pipelines:
               traces:
                 receivers: [otlp]
                 processors: [batch, memory_limiter, resource]
-                exporters: [logging]
+                exporters: [logging, jaeger]
               metrics:
                 receivers: [otlp, prometheus]
                 processors: [batch, memory_limiter, resource]
@@ -220,7 +228,7 @@ spec:
               logs:
                 receivers: [otlp]
                 processors: [batch, memory_limiter, resource]
-                exporters: [logging]
+                exporters: [logging, otlphttp]
   project: default
   syncPolicy:
     automated:

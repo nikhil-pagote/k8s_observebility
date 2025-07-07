@@ -1,267 +1,212 @@
-# Kubernetes Observability Stack with ArgoCD
+# Kubernetes Observability Stack
 
-A complete Kubernetes observability stack deployed using ArgoCD GitOps, featuring Prometheus, Grafana, and OpenTelemetry Collector with production-ready security practices.
+A complete, production-ready Kubernetes observability stack deployed using GitOps principles with ArgoCD and Helm charts.
+
+## 🎯 Overview
+
+This project provides a comprehensive observability solution for Kubernetes clusters with:
+
+- **📊 Metrics**: Prometheus + Grafana for monitoring and visualization
+- **🔍 Traces**: Jaeger for distributed tracing
+- **📝 Logs**: ClickHouse for log storage and querying
+- **📡 Data Collection**: OpenTelemetry Collector for unified telemetry collection
+- **🚀 GitOps**: ArgoCD for declarative deployment and management
 
 ## 🏗️ Architecture
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   ArgoCD UI     │    │   Grafana UI     │    │  Prometheus UI  │
-│   (Port 8080)   │    │   (Port 3000)    │    │   (Port 9090)   │
+│   Applications  │───▶│ OpenTelemetry    │───▶│   ClickHouse    │
+│   (Sample Apps) │    │   Collector      │    │   (Logs)        │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
-         │                       │                       │
-         └───────────────────────┼───────────────────────┘
-                                 │
-                    ┌──────────────────┐
-                    │   ArgoCD Apps    │
-                    │   (GitOps)       │
-                    └──────────────────┘
-                                 │
-         ┌───────────────────────┼───────────────────────┐
-         │                       │                       │
+                                │
+                                ▼
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│  OpenTelemetry  │    │   Prometheus     │    │   Sample Apps   │
-│   Collector     │    │   Stack          │    │   (Load Gen)    │
-│   (Wave 2)      │    │   (Wave 3)       │    │                 │
+│   Prometheus    │◀───│ OpenTelemetry    │───▶│     Jaeger      │
+│   (Metrics)     │    │   Collector      │    │   (Traces)      │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
+                                │
+                                ▼
+                       ┌─────────────────┐
+                       │    Grafana      │
+                       │ (Visualization) │
+                       └─────────────────┘
 ```
 
-## 🚀 Features
+## 🚀 Quick Start
 
-- **GitOps Deployment**: All components deployed via ArgoCD
-- **Sync Waves**: Proper deployment order using ArgoCD sync waves
-- **Production Security**: Non-root users, security contexts, RBAC
-- **Helm-managed CRDs**: Simplified CRD management for POC
-- **Resource Management**: Optimized resource limits and requests
-- **Monitoring**: Complete monitoring of Kubernetes components
-- **Dashboards**: Pre-configured Grafana dashboards
-- **Load Generation**: Sample applications with load generator
-- **OpenTelemetry**: Unified observability with OTel Collector
-- **Cross-Platform**: Works on Windows, macOS, and Linux
+### Prerequisites
 
-## 📋 Prerequisites
+- **Docker Desktop** with Kubernetes enabled
+- **kubectl** configured
+- **Helm** v3+
+- **PowerShell** (Windows) or **Bash** (Linux/Mac)
 
-- Docker Desktop
-- Kind (Kubernetes in Docker)
-- kubectl
-- Helm
-- Docker (for building Rust scripts)
-- Make (optional, for Unix-like systems)
-- PowerShell (for Windows deployment)
+### 1. Clone and Setup
 
-## 🛠️ Quick Start
+```bash
+git clone <repository-url>
+cd k8s_observebility
+```
 
-### Option 1: Using PowerShell Script (Windows)
+### 2. Deploy Everything
 
 ```powershell
-# Complete setup from scratch
+# Windows PowerShell
 .\deploy.ps1 quick-start
-
-# Or step by step:
-.\deploy.ps1 build-scripts
-.\deploy.ps1 setup-cluster
-.\deploy.ps1 deploy-argocd
-.\deploy.ps1 deploy-stack
-.\deploy.ps1 deploy-sample-apps
 ```
 
-### Option 2: Using Makefile (Unix-like systems)
+### 3. Access the UIs
 
-```bash
-# Complete setup from scratch
-make quick-start
-
-# Or step by step:
-make build-scripts
-make setup-cluster
-make deploy-argocd
-make deploy-stack
-make deploy-sample-apps
+```powershell
+# Set up port forwarding
+.\deploy.ps1 port-forward
 ```
 
-### Option 3: Manual Deployment
+**Access URLs:**
+- **Grafana**: http://localhost:3000 (admin/admin123)
+- **Prometheus**: http://localhost:9090
+- **Jaeger**: http://localhost:16686
+- **ArgoCD**: http://localhost:8080 (admin/admin)
 
-```bash
-# Build scripts using Docker
-docker run --rm -v "${PWD}/src-build:/app" -v "${PWD}/bin:/output" rust-builder
+## 📦 Components
 
-# Setup Kind cluster
-./bin/setup_kind_cluster
+### Core Stack
 
-# Deploy ArgoCD
-./bin/deploy_argocd
+| Component | Purpose | Helm Chart | Status |
+|-----------|---------|------------|--------|
+| **Prometheus Stack** | Metrics collection & alerting | `prometheus-community/kube-prometheus-stack` | ✅ Working |
+| **Jaeger** | Distributed tracing | `jaegertracing/jaeger` | ✅ Working |
+| **ClickHouse** | Log storage & querying | `bitnami/clickhouse` | ✅ Working |
+| **OpenTelemetry Collector** | Unified data collection | `open-telemetry/opentelemetry-collector` | ✅ Working |
 
-# Deploy observability stack
-./bin/deploy_observability_stack
+### Sample Applications
 
-# Deploy sample applications
-kubectl apply -f apps/load-generator/ -f apps/sample-app/ -n observability
-```
-
-## 📁 Project Structure
-
-```
-k8s_observebility/
-├── apps/                          # Sample applications
-│   ├── load-generator/
-│   │   └── deployment.yaml
-│   └── sample-app/
-│       └── deployment-basic.yaml
-├── argocd-apps/                   # ArgoCD application manifests
-│   ├── opentelemetry-collector-app.yaml  # OTel (Sync Wave 2)
-│   └── prometheus-stack-app.yaml  # Prometheus/Grafana (Sync Wave 3)
-├── src-build/                     # Rust deployment scripts
-│   ├── Cargo.toml
-│   └── scripts/
-│       ├── setup_kind_cluster.rs
-│       ├── deploy_argocd.rs
-│       ├── deploy_observability_stack.rs
-│       └── cleanup.rs
-├── bin/                          # Compiled binaries (generated)
-├── deploy.ps1                    # PowerShell deployment script
-├── Makefile                      # Make deployment targets
-├── kind-config.yaml              # Kind cluster configuration
-└── README.md
-```
+- **Load Generator**: Simulates application traffic
+- **Sample App**: Basic application with telemetry instrumentation
 
 ## 🔧 Configuration
 
 ### ArgoCD Applications
 
-The observability stack is deployed using ArgoCD applications with sync waves:
+All components are deployed via ArgoCD applications in `argocd-apps/`:
 
-1. **opentelemetry-collector** (Wave 2): Deploys OTel Collector
-2. **prometheus-stack-poc** (Wave 3): Deploys Prometheus and Grafana with production security
+- `prometheus-stack-app.yaml` - Prometheus + Grafana
+- `jaeger-app.yaml` - Jaeger distributed tracing
+- `clickhouse-app.yaml` - ClickHouse log storage
+- `opentelemetry-collector-app.yaml` - Unified data collection
 
-### Resource Limits
+### Data Flow
 
-All components have optimized resource limits:
+1. **Applications** send telemetry data to OpenTelemetry Collector
+2. **OpenTelemetry Collector** processes and routes data:
+   - **Metrics** → Prometheus
+   - **Traces** → Jaeger
+   - **Logs** → ClickHouse
+3. **Grafana** visualizes all data sources
 
-- **Prometheus Operator**: 512Mi memory, 500m CPU
-- **Grafana**: 1Gi memory, 1000m CPU
-- **Prometheus**: 2Gi memory, 1000m CPU
-- **Alertmanager**: 256Mi memory, 250m CPU
-- **OpenTelemetry Collector**: 512Mi memory, 500m CPU
+## 🎮 Usage
 
-### Security Configuration
+### PowerShell Commands
 
-- **Non-root users**: All containers run as non-root
-- **Security contexts**: Proper security contexts configured
-- **RBAC**: Role-based access control implemented
-- **Network policies**: Basic network isolation
+```powershell
+# Quick setup
+.\deploy.ps1 quick-start
 
-## 🎯 Production Readiness
+# Individual commands
+.\deploy.ps1 setup-cluster      # Create Kind cluster
+.\deploy.ps1 deploy-argocd      # Deploy ArgoCD
+.\deploy.ps1 deploy-stack       # Deploy observability stack
+.\deploy.ps1 port-forward       # Set up port forwarding
+.\deploy.ps1 status            # Check component status
+.\deploy.ps1 logs              # View component logs
+.\deploy.ps1 cleanup           # Remove applications
+.\deploy.ps1 clean-all         # Complete cleanup
+```
 
-### ✅ **What's Production-Ready:**
-- GitOps approach with ArgoCD
-- Security contexts and non-root users
-- Resource limits and requests
-- Namespace isolation
-- Cross-platform deployment scripts
-- Helm-managed CRDs (simplified for POC)
+### Monitoring Your Applications
 
-### ⚠️ **POC-Level (Intentionally):**
-- Backup strategy: Manual (not automated)
-- Alerting: Basic webhook (not Slack/PagerDuty)
-- Storage: Local storage (not distributed)
-- High Availability: Single node (not multi-zone)
-- Compliance: Basic (not enterprise-level)
+1. **Add OpenTelemetry SDK** to your applications
+2. **Configure OTLP endpoint**: `http://opentelemetry-collector.observability.svc.cluster.local:4317`
+3. **View traces** in Jaeger UI
+4. **View metrics** in Grafana
+5. **View logs** in ClickHouse (via Grafana)
 
 ## 🔍 Troubleshooting
 
 ### Common Issues
 
-1. **OpenTelemetry Collector in CrashLoopBackOff**
-   - Check for invalid configuration fields in Helm values
-   - Common issue: `add_metric_suffixes` field is not valid for current OTel version
-   - Fix: Remove invalid fields from `argocd-apps/opentelemetry-collector-app.yaml`
-
-2. **Prometheus not scraping targets**
-   - Check if ServiceMonitors have the correct `release: prometheus-stack-poc` label
-   - Verify namespace has the `name: observability` label
-   - Check Prometheus targets page at http://localhost:9090/targets
-
-3. **ArgoCD sync errors**
-   - Check for invalid fields in Helm values
-   - Verify CRDs are installed correctly
-   - Check ArgoCD application logs
-
-4. **Storage issues**
-   - Ensure storage class is available in the cluster
-   - Check PVC status: `kubectl get pvc -n observability`
-
-5. **Port-forwarding not working**
-   - Use correct service names:
-     - Grafana: `prometheus-stack-poc-grafana`
-     - Prometheus: `prometheus-stack-poc-kube-prometheus`
+1. **Port Forwarding Not Working**
+   - Ensure no other services are using the ports
    - Check if pods are running: `kubectl get pods -n observability`
 
-### Verification Commands
+2. **ClickHouse Connection Issues**
+   - Verify ClickHouse pods are running
+   - Check service endpoints: `kubectl get svc -n observability`
+
+3. **OpenTelemetry Collector Issues**
+   - Check collector logs: `kubectl logs -n observability -l app.kubernetes.io/name=opentelemetry-collector`
+
+### Useful Commands
 
 ```bash
-# Check all pods are running
+# Check all components
 kubectl get pods -n observability
 
 # Check ArgoCD applications
 kubectl get applications -n argocd
 
-# Check all resources in observability namespace
-kubectl get all -n observability
+# View component logs
+kubectl logs -n observability <pod-name>
 
-# Check ServiceMonitors
-kubectl get servicemonitor -n observability
-
-# Check Prometheus targets
-kubectl port-forward svc/prometheus-stack-poc-kube-prometheus -n observability 9090:9090
-# Then visit http://localhost:9090/targets
+# Check services
+kubectl get svc -n observability
 ```
 
-## 🚀 Accessing the Stack
+## 🏭 Production Considerations
 
-After deployment:
+### Current Setup (Development/POC)
+- Single-node ClickHouse cluster
+- Local storage (not distributed)
+- Basic resource limits
+- No high availability
 
-- **ArgoCD UI**: http://localhost:8080 (admin/admin)
-- **Grafana**: http://localhost:3000 (admin/admin123)
-- **Prometheus**: http://localhost:9090
+### Production Recommendations
+- **Storage**: Use distributed storage (e.g., EBS, Azure Disk)
+- **High Availability**: Deploy multiple replicas
+- **Security**: Enable TLS, RBAC, network policies
+- **Monitoring**: Add monitoring for the observability stack itself
+- **Backup**: Implement backup strategies for ClickHouse data
 
-Use port-forwarding to access the UIs:
-```bash
-# ArgoCD
-kubectl port-forward svc/argocd-server -n argocd 8080:443
+## 📊 Resource Requirements
 
-# Grafana
-kubectl port-forward svc/prometheus-stack-poc-grafana -n observability 3000:80
+### Minimum Requirements
+- **CPU**: 4 cores
+- **Memory**: 8GB RAM
+- **Storage**: 20GB available space
 
-# Prometheus
-kubectl port-forward svc/prometheus-stack-poc-kube-prometheus -n observability 9090:9090
-```
+### Component Resources
+- **Prometheus Stack**: 2GB RAM, 2 CPU cores
+- **Jaeger**: 1GB RAM, 1 CPU core
+- **ClickHouse**: 1GB RAM, 1 CPU core
+- **OpenTelemetry Collector**: 512MB RAM, 500m CPU
 
-## 📊 Current Status
+## 🤝 Contributing
 
-### ✅ **Working Components:**
-- ArgoCD (GitOps controller)
-- Prometheus Stack (Prometheus, Grafana, Alertmanager)
-- Sample Applications (nginx, load generator)
-- Kube-state-metrics
-- ServiceMonitors and monitoring
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
 
-### 🔧 **Known Issues:**
-- OpenTelemetry Collector may need configuration fixes for newer versions
-- Some Helm chart fields may be deprecated and need updates
+## 📄 License
 
-### 🎯 **Next Steps:**
-- Monitor OpenTelemetry Collector logs for configuration issues
-- Update Helm chart versions as needed
-- Add more comprehensive dashboards and alerts
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-## 🎉 Summary
+## 🙏 Acknowledgments
 
-This observability stack provides a **production-ready foundation** for Kubernetes monitoring with:
-- ✅ GitOps deployment via ArgoCD
-- ✅ Production security practices
-- ✅ Optimized resource management
-- ✅ Complete monitoring stack (Prometheus, Grafana, Alertmanager)
-- ✅ Sample applications for testing
-- ✅ Cross-platform deployment scripts
-
-Ready for development and testing, with a clear path to full production deployment. 
+- **Prometheus Community** for the monitoring stack
+- **Jaeger** for distributed tracing
+- **ClickHouse** for high-performance log storage
+- **OpenTelemetry** for unified observability
+- **ArgoCD** for GitOps deployment 

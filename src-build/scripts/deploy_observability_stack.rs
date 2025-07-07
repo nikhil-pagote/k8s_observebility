@@ -11,8 +11,6 @@ use tokio::time::sleep;
 struct Args {
     #[arg(long, default_value = "observability")]
     namespace: String,
-    #[arg(long, default_value_t = false, help = "Manually install Prometheus CRDs with annotation stripping before deploying ArgoCD apps")]
-    install_crds_manually: bool,
 }
 
 struct ObservabilityStackDeployer {
@@ -145,18 +143,18 @@ impl ObservabilityStackDeployer {
     }
 
     async fn deploy_argocd_apps(&self) -> Result<()> {
-        self.print_status("🚀 Deploying ArgoCD applications for POC observability stack...", "yellow");
+        self.print_status("🚀 Deploying ArgoCD applications for observability stack...", "yellow");
         
         // Create the observability namespace first
         self.print_status("📁 Creating observability namespace...", "yellow");
         let namespace_command = format!("kubectl create namespace {} --dry-run=client -o yaml | kubectl apply -f -", self.namespace);
         self.run_command(&namespace_command, false)?;
         
-        // Deploy ArgoCD applications using kustomize (POC approach)
+        // Deploy ArgoCD applications using kustomize
         let kustomize_command = "kubectl apply -k argocd-apps/";
         match self.run_command(kustomize_command, true) {
             Ok(_) => {
-                self.print_status("✅ ArgoCD applications deployed successfully (POC mode)", "green");
+                self.print_status("✅ ArgoCD applications deployed successfully", "green");
             }
             Err(e) => {
                 self.print_status(&format!("❌ Failed to deploy ArgoCD applications: {}", e), "red");
@@ -180,42 +178,14 @@ impl ObservabilityStackDeployer {
             }
         }
 
-        // Wait for CRDs to be available
-        self.print_status("⏳ Waiting for Prometheus CRDs to be available...", "yellow");
-        let max_attempts = 60; // 10 minutes with 10-second intervals
-        let mut attempt = 0;
-        
-        while attempt < max_attempts {
-            match self.run_command("kubectl get crd servicemonitors.monitoring.coreos.com", false) {
-                Ok(_) => {
-                    self.print_status("✅ ServiceMonitor CRD is available", "green");
-                    break;
-                }
-                Err(_) => {
-                    attempt += 1;
-                    if attempt < max_attempts {
-                        self.print_status(&format!("⏳ Waiting for CRDs... (Attempt {}/{})", attempt, max_attempts), "yellow");
-                        sleep(Duration::from_secs(10)).await;
-                    } else {
-                        self.print_status("❌ Timeout waiting for CRDs to be available", "red");
-                        return Err(anyhow::anyhow!("CRDs not available after {} attempts", max_attempts));
-                    }
-                }
-            }
-        }
-
         Ok(())
     }
 
     async fn deploy_sample_apps(&self) -> Result<()> {
         self.print_status("🚀 Deploying sample applications for testing...", "yellow");
         
-        // Create namespace if it doesn't exist (for sample apps, not ArgoCD apps)
-        let namespace_command = format!("kubectl create namespace {} --dry-run=client -o yaml | kubectl apply -f -", self.namespace);
-        self.run_command(&namespace_command, false)?;
-        
-        // Deploy sample apps from all subdirectories (using basic deployment without ServiceMonitor)
-        let sample_apps_command = format!("kubectl apply -f apps/load-generator/ -f apps/sample-app/deployment-basic.yaml -n {}", self.namespace);
+        // Deploy sample applications
+        let sample_apps_command = format!("kubectl apply -f apps/load-generator/ -f apps/sample-app/ -n {}", self.namespace);
         match self.run_command(&sample_apps_command, true) {
             Ok(_) => {
                 self.print_status("✅ Sample applications deployed successfully", "green");
@@ -226,26 +196,18 @@ impl ObservabilityStackDeployer {
             }
         }
 
-        // Wait for pods to be ready
+        // Wait for sample applications to be ready
         self.print_status("⏳ Waiting for sample applications to be ready...", "yellow");
         let max_attempts = 30;
         let mut attempt = 0;
         
         while attempt < max_attempts {
-            match self.run_command(&format!("kubectl get pods -n {} --no-headers", self.namespace), false) {
+            match self.run_command(&format!("kubectl get pods -n {} --no-headers | grep -v Running | grep -v Completed", self.namespace), false) {
                 Ok(output) => {
                     let output_str = String::from_utf8_lossy(&output.stdout);
-                    let pods: Vec<&str> = output_str.trim().split('\n').collect();
-                    
-                    if !pods.is_empty() {
-                        let ready_pods = pods.iter()
-                            .filter(|pod| pod.contains("Running"))
-                            .count();
-                        
-                        if ready_pods == pods.len() {
-                            self.print_status("✅ All sample applications are ready!", "green");
-                            break;
-                        }
+                    if output_str.trim().is_empty() {
+                        self.print_status("✅ Sample applications are ready", "green");
+                        break;
                     }
                 }
                 Err(_) => {}
@@ -269,12 +231,12 @@ impl ObservabilityStackDeployer {
                 let ip = output_str.trim();
                 if !ip.is_empty() {
                     self.print_status(&format!("🔗 Grafana: http://{}:80", ip), "cyan");
-                    self.print_status("   Username: admin, Password: admin", "white");
+                    self.print_status("   Username: admin, Password: admin123", "white");
                 }
             }
             Err(_) => {
                 self.print_status("🔗 Grafana: Use port-forward: kubectl port-forward svc/prometheus-stack-grafana -n observability 3000:80", "cyan");
-                self.print_status("   Username: admin, Password: admin", "white");
+                self.print_status("   Username: admin, Password: admin123", "white");
             }
         }
 
@@ -292,54 +254,24 @@ impl ObservabilityStackDeployer {
             }
         }
 
-        Ok(())
-    }
-
-    fn install_prometheus_crds_manually(&self) -> Result<()> {
-        use std::fs;
-        use serde_yaml::Value;
-        use reqwest::blocking::get;
-        self.print_status("🔧 Downloading and installing Prometheus CRDs manually...", "yellow");
-        let crd_urls = vec![
-            "https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_alertmanagerconfigs.yaml",
-            "https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_alertmanagers.yaml",
-            "https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_podmonitors.yaml",
-            "https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_probes.yaml",
-            "https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_prometheuses.yaml",
-            "https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_prometheusrules.yaml",
-            "https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_servicemonitors.yaml",
-            "https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_thanosrulers.yaml",
-            "https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_scrapeconfigs.yaml",
-            "https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_prometheusagents.yaml",
-        ];
-        let tmp_dir = "./tmp_crds";
-        fs::create_dir_all(tmp_dir)?;
-        for url in &crd_urls {
-            let resp = get(*url).context(format!("Failed to download CRD: {}", url))?;
-            let text = resp.text().context("Failed to read CRD response text")?;
-            let mut doc: Value = serde_yaml::from_str(&text).context("Failed to parse CRD YAML")?;
-            // Remove or clear metadata.annotations
-            if let Some(meta) = doc.get_mut("metadata") {
-                if let Some(map) = meta.as_mapping_mut() {
-                    map.remove(&Value::String("annotations".to_string()));
+        // Get Jaeger URL
+        match self.run_command(&format!("kubectl get svc -n {} jaeger-query -o jsonpath='{{.status.loadBalancer.ingress[0].ip}}'", self.namespace), false) {
+            Ok(output) => {
+                let output_str = String::from_utf8_lossy(&output.stdout);
+                let ip = output_str.trim();
+                if !ip.is_empty() {
+                    self.print_status(&format!("🔗 Jaeger UI: http://{}:16686", ip), "cyan");
                 }
             }
-            let cleaned_yaml = serde_yaml::to_string(&doc).context("Failed to serialize cleaned CRD YAML")?;
-            let file_name = url.split('/').last().unwrap_or("crd.yaml");
-            let file_path = format!("{}/{}", tmp_dir, file_name);
-            fs::write(&file_path, cleaned_yaml).context("Failed to write cleaned CRD file")?;
-            // Apply the CRD
-            let apply_cmd = format!("kubectl apply -f {}", file_path);
-            match self.run_command(&apply_cmd, true) {
-                Ok(_) => self.print_status(&format!("✅ Applied {}", file_name), "green"),
-                Err(e) => self.print_status(&format!("❌ Failed to apply {}: {}", file_name, e), "red"),
+            Err(_) => {
+                self.print_status("🔗 Jaeger UI: Use port-forward: kubectl port-forward svc/jaeger-query -n observability 16686:16686", "cyan");
             }
         }
-        self.print_status("✅ All Prometheus CRDs processed.", "green");
+
         Ok(())
     }
 
-    async fn deploy(&self, install_crds_manually: bool) -> Result<bool> {
+    async fn deploy(&self) -> Result<bool> {
         self.print_status("🚀 Deploying Complete Kubernetes Observability Stack", "green");
         self.print_status(&format!("Namespace: {}", self.namespace), "cyan");
         
@@ -348,11 +280,7 @@ impl ObservabilityStackDeployer {
             return Ok(false);
         }
         
-        if install_crds_manually {
-            self.install_prometheus_crds_manually()?;
-        }
-        
-        // Deploy ArgoCD applications first (this deploys the actual observability stack)
+        // Deploy ArgoCD applications
         self.deploy_argocd_apps().await?;
         
         // Deploy sample applications for testing
@@ -365,10 +293,9 @@ impl ObservabilityStackDeployer {
         self.print_status("🎉 Observability Stack Deployment Completed Successfully!", "green");
         self.print_status("", "white");
         self.print_status("📋 What was deployed:", "cyan");
-        self.print_status("   ✅ Prometheus CRDs (Sync Wave 1)", "white");
+        self.print_status("   ✅ Prometheus Stack with Grafana (Sync Wave 1)", "white");
+        self.print_status("   ✅ Jaeger - Distributed Tracing (Sync Wave 2)", "white");
         self.print_status("   ✅ OpenTelemetry Collector (Sync Wave 2)", "white");
-        self.print_status("   ✅ Prometheus Stack with Grafana (Sync Wave 3)", "white");
-        self.print_status("   ✅ ArgoCD Dashboard", "white");
         self.print_status("   ✅ Sample Applications for Testing", "white");
         self.print_status("", "white");
         self.print_status("📋 Access URLs:", "cyan");
@@ -378,8 +305,11 @@ impl ObservabilityStackDeployer {
         self.print_status("      Port forwarding: kubectl port-forward svc/prometheus-stack-grafana -n observability 3000:80", "white");
         self.print_status("   3. Prometheus: http://localhost:9090", "white");
         self.print_status("      Port forwarding: kubectl port-forward svc/prometheus-stack-kube-prom-prometheus -n observability 9090:9090", "white");
+        self.print_status("   4. Jaeger UI: http://localhost:16686", "white");
+        self.print_status("      Port forwarding: kubectl port-forward svc/jaeger-query -n observability 16686:16686", "white");
         self.print_status("", "white");
         self.print_status("🔍 Monitor deployment in ArgoCD UI to see sync waves in action!", "cyan");
+        self.print_status("🔍 Grafana is pre-configured with Jaeger data sources", "cyan");
         
         Ok(true)
     }
@@ -393,7 +323,7 @@ async fn main() -> Result<()> {
         args.namespace,
     );
     
-    let success = deployer.deploy(args.install_crds_manually).await?;
+    let success = deployer.deploy().await?;
     
     if success {
         Ok(())

@@ -69,7 +69,7 @@ function Show-Help {
     Write-Status "  setup-cluster      - Create and configure Kind cluster"
     Write-Status "  deploy-argocd      - Deploy ArgoCD to the cluster"
     Write-Status "  deploy-stack       - Deploy observability stack via ArgoCD"
-    Write-Status "  deploy-stack-manual- Deploy stack with manual CRD installation"
+    Write-Status "  deploy-stack       - Deploy observability stack via ArgoCD"
     Write-Status "  deploy-sample-apps - Deploy sample applications for testing"
     Write-Status "  build-scripts      - Build Rust deployment scripts using Docker"
     Write-Status "  status            - Show status of all components"
@@ -81,11 +81,16 @@ function Show-Help {
     Write-Status "  port-forward      - Set up port forwarding for local access"
     Write-Status "  get-urls          - Get service URLs"
     Write-Status "  troubleshoot      - Show troubleshooting information"
-    Write-Status "  install-crds      - Install CRDs manually (standalone)"
     Write-Status "  help              - Show this help message"
     Write-Status ""
+    Write-Status "Components:"
+    Write-Status "  📊 Prometheus + Grafana - Metrics and visualization"
+    Write-Status "  📊 Prometheus + Grafana - Metrics and visualization"
+    Write-Status "  🔍 Jaeger - Distributed tracing"
+    Write-Status "  📡 OpenTelemetry Collector - Data collection"
+    Write-Status ""
     Write-Status "Usage: .\deploy.ps1 <command> [options]"
-    Write-Status "Example: .\deploy.ps1 deploy-stack-manual"
+    Write-Status "Example: .\deploy.ps1 deploy-stack"
 }
 
 function Test-Prerequisites {
@@ -174,12 +179,7 @@ function Deploy-Stack {
     Write-Success-Status "✅ Observability stack deployment complete"
 }
 
-function Deploy-Stack-Manual {
-    Test-Binaries
-    Write-Warning-Status "🚀 Deploying observability stack with manual CRD installation..."
-    Invoke-Command ".\bin\deploy_observability_stack.exe --install-crds-manually"
-    Write-Success-Status "✅ Observability stack deployment complete"
-}
+
 
 function Deploy-Sample-Apps {
     Write-Warning-Status "🚀 Deploying sample applications..."
@@ -211,6 +211,11 @@ function Show-Status {
     Write-Status ""
     Write-Status "CRDs:"
     kubectl get crd | Select-String "monitoring.coreos.com"
+    Write-Status ""
+
+    Write-Status ""
+    Write-Status "Jaeger Status:"
+    kubectl get pods -n $Namespace | Select-String "jaeger"
 }
 
 function Show-Logs {
@@ -228,6 +233,14 @@ function Show-Logs {
     Write-Status ""
     Write-Status "Grafana:"
     kubectl logs -n $Namespace deployment/prometheus-stack-grafana --tail=20
+    Write-Status ""
+
+    Write-Status ""
+    Write-Status "Jaeger:"
+    kubectl logs -n $Namespace deployment/jaeger --tail=20
+    Write-Status ""
+    Write-Status "OpenTelemetry Collector:"
+    kubectl logs -n $Namespace deployment/opentelemetry-collector --tail=20
 }
 
 function Cleanup {
@@ -270,7 +283,7 @@ function Quick-Start {
     Write-Warning-Status "🎉 Starting complete setup..."
     Setup-Cluster
     Deploy-ArgoCD
-    Deploy-Stack-Manual
+    Deploy-Stack
     Deploy-Sample-Apps
     Write-Success-Status "🎉 Quick start complete! Your observability stack is ready."
 }
@@ -289,8 +302,10 @@ function Dev-Setup {
 function Port-Forward {
     Write-Info-Status "🔗 Setting up port forwarding..."
     Write-Status "ArgoCD UI: http://localhost:8080 (admin/admin)"
-    Write-Status "Grafana: http://localhost:3000 (admin/admin)"
+    Write-Status "Grafana: http://localhost:3000 (admin/admin123)"
     Write-Status "Prometheus: http://localhost:9090"
+    Write-Status "Jaeger UI: http://localhost:16686"
+
     Write-Status ""
     Write-Status "Press Ctrl+C to stop port forwarding"
     
@@ -298,6 +313,8 @@ function Port-Forward {
     $jobs += Start-Job -ScriptBlock { kubectl port-forward -n argocd svc/argocd-server 8080:80 }
     $jobs += Start-Job -ScriptBlock { kubectl port-forward -n $using:Namespace svc/prometheus-stack-grafana 3000:80 }
     $jobs += Start-Job -ScriptBlock { kubectl port-forward -n $using:Namespace svc/prometheus-stack-kube-prom-prometheus 9090:9090 }
+    $jobs += Start-Job -ScriptBlock { kubectl port-forward -n $using:Namespace svc/jaeger-query 16686:80 }
+
     
     try {
         Wait-Job -Job $jobs
@@ -335,6 +352,16 @@ function Get-Urls {
     } else {
         Write-Status "http://localhost:9090 (use port-forward)"
     }
+    Write-Status ""
+    Write-Status "Jaeger UI:"
+    $jaegerUrl = kubectl get svc jaeger-query -n $Namespace -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>$null
+    if ($jaegerUrl) {
+        Write-Status $jaegerUrl
+    } else {
+        Write-Status "http://localhost:16686 (use port-forward)"
+    }
+    Write-Status ""
+
 }
 
 function Troubleshoot {
@@ -354,35 +381,7 @@ function Troubleshoot {
     kubectl get all -n $Namespace
 }
 
-function Install-Crds {
-    Write-Warning-Status "🔧 Installing Prometheus CRDs manually..."
-    if (-not (Test-Path ".\tmp_crds")) {
-        New-Item -ItemType Directory -Path ".\tmp_crds" -Force | Out-Null
-    }
-    Write-Status "Downloading CRDs..."
-    
-    $crdUrls = @{
-        "prometheuses.yaml" = "https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_prometheuses.yaml"
-        "alertmanagerconfigs.yaml" = "https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_alertmanagerconfigs.yaml"
-        "alertmanagers.yaml" = "https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_alertmanagers.yaml"
-        "thanosrulers.yaml" = "https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_thanosrulers.yaml"
-        "scrapeconfigs.yaml" = "https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_scrapeconfigs.yaml"
-        "prometheusagents.yaml" = "https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_prometheusagents.yaml"
-    }
-    
-    foreach ($crd in $crdUrls.GetEnumerator()) {
-        $content = Invoke-RestMethod -Uri $crd.Value
-        # Remove annotations (simplified approach)
-        if ($content.metadata.annotations) {
-            $content.metadata.annotations = $null
-        }
-        $content | ConvertTo-Yaml | Out-File -FilePath ".\tmp_crds\$($crd.Key)" -Encoding UTF8
-    }
-    
-    Write-Status "Applying CRDs..."
-    kubectl apply -f tmp_crds/
-    Write-Success-Status "✅ CRDs installed successfully"
-}
+
 
 # Main execution
 switch ($Command.ToLower()) {
@@ -390,7 +389,7 @@ switch ($Command.ToLower()) {
     "setup-cluster" { Setup-Cluster }
     "deploy-argocd" { Deploy-ArgoCD }
     "deploy-stack" { Deploy-Stack }
-    "deploy-stack-manual" { Deploy-Stack-Manual }
+    "deploy-stack" { Deploy-Stack }
     "deploy-sample-apps" { Deploy-Sample-Apps }
     "build-scripts" { Build-Scripts }
     "status" { Show-Status }
@@ -402,7 +401,7 @@ switch ($Command.ToLower()) {
     "port-forward" { Port-Forward }
     "get-urls" { Get-Urls }
     "troubleshoot" { Troubleshoot }
-    "install-crds" { Install-Crds }
+
     default {
         Write-Error-Status "Unknown command: $Command"
         Show-Help

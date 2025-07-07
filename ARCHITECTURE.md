@@ -1,28 +1,30 @@
 # Observability Stack Architecture
 
 ## Overview
-This observability stack uses a **clean separation of concerns** where:
-- **OpenTelemetry Collector**: Primary data collection from all sources
-- **Prometheus**: Storage and querying of metrics only
+This observability stack provides a comprehensive solution for Kubernetes monitoring with:
+- **OpenTelemetry Collector**: Unified data collection from all sources
+- **Prometheus**: Metrics storage and querying
 - **Grafana**: Visualization and dashboards
+- **Jaeger**: Distributed tracing
+- **ClickHouse**: High-performance log storage
 - **ArgoCD**: GitOps deployment and management
 
 ## Data Flow
 ```
-Applications → OpenTelemetry Collector → Prometheus → Grafana
-     ↓              ↓                        ↓         ↓
-   OTLP         Scraping                Storage    Dashboards
-   Metrics      Kubernetes              & Query    & Alerts
-   Traces       Services                Engine
-   Logs         Nodes
+Applications → OpenTelemetry Collector → [Prometheus, Jaeger, ClickHouse] → Grafana
+     ↓              ↓                        ↓         ↓         ↓         ↓
+   OTLP         Processing              Metrics   Traces    Logs   Dashboards
+   Metrics      & Routing              Storage   Storage   Storage & Alerts
+   Traces       Kubernetes
+   Logs         Services
 ```
 
 ## Component Responsibilities
 
 ### OpenTelemetry Collector
-**Primary Role**: Data Collection
+**Primary Role**: Unified Data Collection
 - **OTLP Receiver**: Collects traces, metrics, logs from applications
-- **Prometheus Receiver**: Scrapes all Kubernetes resources
+- **Prometheus Receiver**: Scrapes Kubernetes resources
   - Kubernetes pods with Prometheus annotations
   - Kubernetes service endpoints
   - Kubernetes nodes (system metrics)
@@ -30,108 +32,139 @@ Applications → OpenTelemetry Collector → Prometheus → Grafana
   - Grafana metrics
   - Alertmanager metrics
 - **Processors**: Batch, memory limiter, resource labeling
-- **Prometheus Exporter**: Exports all collected metrics to Prometheus
+- **Exporters**: 
+  - **Prometheus**: Exports metrics to Prometheus
+  - **Jaeger**: Exports traces to Jaeger
+  - **ClickHouse**: Exports logs to ClickHouse
 
 ### Prometheus
-**Primary Role**: Storage & Querying
-- **No Scraping**: All data comes from OpenTelemetry Collector
+**Primary Role**: Metrics Storage & Querying
 - **Storage**: Time-series database for metrics
 - **Query Engine**: PromQL queries for dashboards and alerts
-- **Self-Monitoring**: Only monitors its own health
+- **Self-Monitoring**: Monitors its own health
+
+### Jaeger
+**Primary Role**: Distributed Tracing
+- **Trace Storage**: Stores distributed traces
+- **Query Service**: Provides trace querying capabilities
+- **UI**: Web interface for trace visualization
+
+### ClickHouse
+**Primary Role**: Log Storage & Querying
+- **High-Performance**: Columnar database optimized for analytics
+- **Log Storage**: Stores application and system logs
+- **Query Engine**: SQL-like queries for log analysis
 
 ### Grafana
 **Primary Role**: Visualization
-- **Dashboards**: Kubernetes, Prometheus, custom dashboards
-- **Data Source**: Prometheus
+- **Dashboards**: Kubernetes, Prometheus, Jaeger, ClickHouse dashboards
+- **Data Sources**: Prometheus, Jaeger, ClickHouse
 - **Alerts**: Based on Prometheus queries
 
 ## Benefits of This Architecture
 
-### 1. **Single Source of Truth**
-- OpenTelemetry Collector is the only component collecting data
-- No duplicate scraping or data collection
-- Consistent data format and labeling
+### 1. **Unified Observability**
+- Single OpenTelemetry Collector for all telemetry data
+- Consistent data format and labeling across metrics, traces, and logs
+- Better correlation between different data types
 
-### 2. **Resource Optimization**
-- Reduced CPU usage (no duplicate scraping)
-- Lower memory consumption
-- Less network traffic
-- Smaller storage footprint
+### 2. **High Performance**
+- ClickHouse provides fast log querying and storage
+- Prometheus optimized for time-series metrics
+- Jaeger specialized for trace analysis
 
-### 3. **Simplified Management**
-- Fewer ServiceMonitors to maintain
-- Centralized collection configuration
-- Easier troubleshooting
+### 3. **Scalability**
+- Each component can scale independently
+- ClickHouse supports horizontal scaling
+- Prometheus can be federated or use remote storage
 
-### 4. **Enhanced Capabilities**
-- Unified collection pipeline for metrics, traces, and logs
-- Better data correlation
-- Future-ready for advanced observability features
+### 4. **GitOps Management**
+- ArgoCD manages all deployments
+- Declarative configuration
+- Version-controlled deployments
 
 ## Configuration Details
 
-### OpenTelemetry Collector Scraping Jobs
-1. **kubernetes-pods**: Pods with `prometheus.io/scrape=true`
-2. **kubernetes-service-endpoints**: Services with Prometheus annotations
-3. **kubernetes-nodes**: Node system metrics via kubelet
-4. **coredns**: DNS performance metrics
-5. **grafana**: Grafana application metrics
-6. **alertmanager**: Alert processing metrics
+### OpenTelemetry Collector Configuration
+- **Receivers**: OTLP, Prometheus
+- **Processors**: Batch, memory limiter, resource labeling
+- **Exporters**: Prometheus, Jaeger, ClickHouse
+- **Service Pipelines**: Metrics, Traces, Logs
 
 ### Prometheus Configuration
-- **No ServiceMonitors**: All collection handled by OpenTelemetry
-- **No kube-state-metrics**: OpenTelemetry handles Kubernetes metrics
-- **Minimal Rules**: Only Prometheus self-monitoring rules
 - **Storage**: 30Gi PVC for metrics retention
+- **Scraping**: Via OpenTelemetry Collector
+- **Rules**: Kubernetes and application monitoring rules
 
-### Grafana Dashboards
-- **Kubernetes Cluster**: Overall cluster health
-- **Kubernetes Pods**: Pod-level metrics
-- **Kubernetes Nodes**: Node system metrics
-- **Prometheus**: Prometheus server health
-- **Custom**: Sample application dashboard
+### ClickHouse Configuration
+- **Storage**: 20Gi PVC for log retention
+- **Replicas**: Single node (development setup)
+- **Compression**: Optimized for log storage
+
+### Jaeger Configuration
+- **Storage**: In-memory (development setup)
+- **UI**: Web interface for trace visualization
+- **Sampling**: 100% sampling rate
 
 ## Monitoring Stack
 
-### Available Metrics
-- **Infrastructure**: CPU, memory, disk, network (via OpenTelemetry)
-- **Kubernetes**: Pods, services, deployments, nodes
-- **Applications**: HTTP metrics, custom business metrics
-- **System**: CoreDNS, Grafana, Alertmanager performance
+### Available Data Types
+- **Metrics**: Infrastructure, Kubernetes, application metrics
+- **Traces**: Distributed traces with service dependencies
+- **Logs**: Application and system logs with structured data
 
 ### Available Dashboards
-- **Kubernetes**: 8 comprehensive dashboards
-- **Prometheus**: 3 monitoring dashboards
-- **Custom**: 1 sample application dashboard
+- **Kubernetes**: Cluster health, pods, nodes
+- **Prometheus**: Server health and performance
+- **Jaeger**: Trace visualization and analysis
+- **ClickHouse**: Log analysis and querying
 
-## Future Enhancements
-1. **Jaeger**: Distributed tracing visualization
-2. **Loki**: Log aggregation and querying
-3. **Custom Application Metrics**: Business-specific dashboards
-4. **Advanced Alerting**: More sophisticated alert rules
-5. **Long-term Storage**: Thanos or Cortex integration
+## Production Considerations
+
+### Current Setup (Development/POC)
+- Single-node ClickHouse cluster
+- In-memory Jaeger storage
+- Local storage (not distributed)
+- Basic resource limits
+
+### Production Recommendations
+- **ClickHouse**: Multi-node cluster with replication
+- **Jaeger**: Persistent storage (Elasticsearch/Cassandra)
+- **Prometheus**: Remote storage (Thanos/Cortex)
+- **High Availability**: Multiple replicas for all components
+- **Security**: TLS, RBAC, network policies
+- **Backup**: Automated backup strategies
 
 ## Troubleshooting
 
 ### Common Issues
-1. **No Metrics in Grafana**: Check OpenTelemetry Collector logs
-2. **Missing Data**: Verify scraping jobs in OpenTelemetry config
-3. **High Resource Usage**: Monitor OpenTelemetry Collector metrics
-4. **Sync Issues**: Check ArgoCD application status
+1. **No Data in Grafana**: Check OpenTelemetry Collector logs
+2. **ClickHouse Connection Issues**: Verify ClickHouse pods are running
+3. **Jaeger UI Not Loading**: Check Jaeger service endpoints
+4. **High Resource Usage**: Monitor component metrics
 
 ### Useful Commands
 ```bash
-# Check OpenTelemetry Collector status
-kubectl get pods -n observability -l app.kubernetes.io/name=opentelemetry-collector
+# Check all components
+kubectl get pods -n observability
 
 # View OpenTelemetry logs
 kubectl logs -n observability -l app.kubernetes.io/name=opentelemetry-collector
 
-# Check Prometheus targets
-kubectl port-forward -n observability svc/prometheus-operated 9090:9090
-# Then visit http://localhost:9090/targets
+# Check ClickHouse status
+kubectl logs -n observability -l app.kubernetes.io/name=clickhouse
 
-# Check Grafana dashboards
-kubectl port-forward -n observability svc/prometheus-stack-poc-grafana 3000:80
-# Then visit http://localhost:3000
-``` 
+# Check Jaeger status
+kubectl logs -n observability -l app.kubernetes.io/name=jaeger
+
+# Port forwarding for UIs
+kubectl port-forward -n observability svc/prometheus-stack-grafana 3000:80
+kubectl port-forward -n observability svc/jaeger-query 16686:80
+```
+
+## Future Enhancements
+1. **High Availability**: Multi-node deployments
+2. **Advanced Alerting**: More sophisticated alert rules
+3. **Custom Dashboards**: Application-specific visualizations
+4. **Security**: TLS, authentication, authorization
+5. **Backup & Recovery**: Automated data protection 
