@@ -1,6 +1,6 @@
 # Kubernetes Observability Stack
 
-A complete, production-ready Kubernetes observability stack deployed using GitOps principles with ArgoCD and Helm charts.
+A complete, production-ready Kubernetes observability stack deployed using GitOps principles with ArgoCD and Bitnami Helm charts.
 
 ## 🎯 Overview
 
@@ -14,23 +14,72 @@ This project provides a comprehensive observability solution for Kubernetes clus
 
 ## 🏗️ Architecture
 
+### Data Flow Architecture
+
 ```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Applications  │───▶│ OpenTelemetry    │───▶│   ClickHouse    │
-│   (Sample Apps) │    │   Collector      │    │   (Logs)        │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-                                │
-                                ▼
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Prometheus    │◀───│ OpenTelemetry    │───▶│     Jaeger      │
-│   (Metrics)     │    │   Collector      │    │   (Traces)      │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-                                │
-                                ▼
-                       ┌─────────────────┐
-                       │    Grafana      │
-                       │ (Visualization) │
-                       └─────────────────┘
+       ┌─────────────────┐
+       │   Applications  │
+       │   (Sample Apps) │
+       └─────────────────┘
+                │
+                ▼
+       ┌──────────────────┐
+       │ OpenTelemetry    │
+       │   Collector      │
+       └──────────────────┘
+                │
+    ┌───────────┼────────────┐
+    │           │            │
+    ▼           ▼            ▼
+┌─────────┐ ┌─────────┐ ┌─────────┐
+│Prometheus│ │  Jaeger │ │ClickHouse│
+│(Metrics) │ │(Traces) │ │ (Logs)  │
+└─────────┘ └─────────┘ └─────────┘
+    │            │           │
+    └────────────┼───────────┘
+                 │
+                 ▼
+         ┌───────────────┐
+         │   Grafana     │
+         │(Visualization)│
+         └───────────────┘
+```
+
+### Deployment Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    ArgoCD Applications                          │
+├─────────────────┬─────────────────┬─────────────────┬───────────┤
+│   Grafana App   │  Prometheus App │   Jaeger App    │ClickHouse │
+│   (bitnami)     │    (bitnami)    │    (bitnami)    │  (bitnami)│
+│   v9.5.0        │    v11.2.8      │    v1.0.0       │  v1.0.0  │
+└─────────────────┴─────────────────┴─────────────────┴───────────┘
+         │                │                │              │
+         ▼                ▼                ▼              ▼
+┌─────────────────┐ ┌─────────────────┐ ┌─────────────┐ ┌─────────────┐
+│    Grafana      │ │   Prometheus    │ │   Jaeger    │ │  ClickHouse │
+│   (Port 3000)   │ │   (Port 9090)   │ │ (Port 16686)│ │ (Port 8123) │
+│   Namespace:    │ │   Namespace:    │ │ Namespace:  │ │ Namespace:  │
+│  observability  │ │  observability  │ │observability│ │observability│
+└─────────────────┘ └─────────────────┘ └─────────────┘ └─────────────┘
+         │                │                │              │
+         └────────────────┼────────────────┼──────────────┘
+                          │                │
+                          ▼                ▼
+                   ┌─────────────────────────────────┐
+                   │      OpenTelemetry Collector    │
+                   │        (Data Routing)           │
+                   │      Namespace: observability   │
+                   └─────────────────────────────────┘
+                                   │
+                                   ▼
+                          ┌─────────────────┐
+                          │   Applications  │
+                          │  (Sample Apps)  │
+                          │  Namespace:     │
+                          │  observability  │
+                          └─────────────────┘
 ```
 
 ## 🚀 Quick Start
@@ -53,18 +102,18 @@ cd k8s_observebility
 
 ```powershell
 # Windows PowerShell
-.\deploy.ps1 quick-start
+.\bin\k8s-obs.exe quick-start
 ```
 
 ### 3. Access the UIs
 
 ```powershell
 # Set up port forwarding
-.\deploy.ps1 port-forward
+.\bin\k8s-obs.exe port-forward
 ```
 
 **Access URLs:**
-- **Grafana**: http://localhost:3000 (admin/admin123)
+- **Grafana**: http://localhost:3000 (admin/hVfUTCsAbA)
 - **Prometheus**: http://localhost:9090
 - **Jaeger**: http://localhost:16686
 - **ArgoCD**: http://localhost:8080 (admin/admin)
@@ -73,25 +122,25 @@ cd k8s_observebility
 
 ### Core Stack
 
-| Component | Purpose | Helm Chart | Status |
-|-----------|---------|------------|--------|
-| **Prometheus Stack** | Metrics collection & alerting | `prometheus-community/kube-prometheus-stack` | ✅ Working |
-| **Jaeger** | Distributed tracing | `jaegertracing/jaeger` | ✅ Working |
-| **ClickHouse** | Log storage & querying | `bitnami/clickhouse` | ✅ Working |
-| **OpenTelemetry Collector** | Unified data collection | `open-telemetry/opentelemetry-collector` | ✅ Working |
+| Component | Purpose | Helm Chart | Version | Status |
+|-----------|---------|------------|---------|--------|
+| **Grafana** | Visualization & dashboards | `bitnami/grafana` | 9.5.0 | ✅ Working |
+| **Prometheus** | Metrics collection & alerting | `bitnami/kube-prometheus` | 11.2.8 | ✅ Working |
+| **Jaeger** | Distributed tracing | `bitnami/jaeger` | 1.0.0 | ✅ Working |
+| **ClickHouse** | Log storage & querying | `bitnami/clickhouse` | 1.0.0 | ✅ Working |
+| **OpenTelemetry Collector** | Unified data collection | `open-telemetry/opentelemetry-collector` | 0.1.0 | ✅ Working |
 
 ### Sample Applications
 
 - **Load Generator**: Simulates application traffic
 - **Sample App**: Basic application with telemetry instrumentation
 
-## 🔧 Configuration
-
 ### ArgoCD Applications
 
-All components are deployed via ArgoCD applications in `argocd-apps/`:
+All components are deployed via separate ArgoCD applications in `argocd-apps/`:
 
-- `prometheus-stack-app.yaml` - Prometheus + Grafana
+- `grafana-app.yaml` - Grafana visualization platform
+- `prometheus-app.yaml` - Prometheus metrics collection
 - `jaeger-app.yaml` - Jaeger distributed tracing
 - `clickhouse-app.yaml` - ClickHouse log storage
 - `opentelemetry-collector-app.yaml` - Unified data collection
@@ -111,17 +160,17 @@ All components are deployed via ArgoCD applications in `argocd-apps/`:
 
 ```powershell
 # Quick setup
-.\deploy.ps1 quick-start
+.\bin\k8s-obs.exe quick-start
 
 # Individual commands
-.\deploy.ps1 setup-cluster      # Create Kind cluster
-.\deploy.ps1 deploy-argocd      # Deploy ArgoCD
-.\deploy.ps1 deploy-stack       # Deploy observability stack
-.\deploy.ps1 port-forward       # Set up port forwarding
-.\deploy.ps1 status            # Check component status
-.\deploy.ps1 logs              # View component logs
-.\deploy.ps1 cleanup           # Remove applications
-.\deploy.ps1 clean-all         # Complete cleanup
+.\bin\k8s-obs.exe setup-cluster      # Create Kind cluster
+.\bin\k8s-obs.exe deploy-argocd      # Deploy ArgoCD
+.\bin\k8s-obs.exe deploy-stack       # Deploy observability stack
+.\bin\k8s-obs.exe port-forward       # Set up port forwarding
+.\bin\k8s-obs.exe status            # Check component status
+.\bin\k8s-obs.exe logs              # View component logs
+.\bin\k8s-obs.exe cleanup           # Remove applications
+.\bin\k8s-obs.exe clean-all         # Complete cleanup
 ```
 
 ### Monitoring Your Applications
@@ -186,7 +235,8 @@ kubectl get svc -n observability
 - **Storage**: 20GB available space
 
 ### Component Resources
-- **Prometheus Stack**: 2GB RAM, 2 CPU cores
+- **Grafana**: 512MB RAM, 500m CPU
+- **Prometheus**: 2GB RAM, 2 CPU cores
 - **Jaeger**: 1GB RAM, 1 CPU core
 - **ClickHouse**: 1GB RAM, 1 CPU core
 - **OpenTelemetry Collector**: 512MB RAM, 500m CPU
@@ -205,8 +255,22 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 🙏 Acknowledgments
 
+- **Bitnami** for production-ready Helm charts
 - **Prometheus Community** for the monitoring stack
 - **Jaeger** for distributed tracing
 - **ClickHouse** for high-performance log storage
 - **OpenTelemetry** for unified observability
-- **ArgoCD** for GitOps deployment 
+- **ArgoCD** for GitOps deployment
+
+## 🛠️ Building Deployment Binaries
+
+All deployment binaries (such as `k8s-obs.exe`, `setup_kind_cluster.exe`, etc.) are built using the provided PowerShell script:
+
+```powershell
+./build-scripts.ps1
+```
+
+- This script uses Docker to cross-compile the Rust binaries for Windows.
+- The `bin/` directory is used for all build outputs and is not tracked in version control.
+- The build process **requires** `Dockerfile.build` in the repository, which defines the `rust-builder` image used by the script.
+- The old architecture documentation (ARCHITECTURE.md) is now fully integrated into this README. 

@@ -1,0 +1,106 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grafana
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  labels:
+    app.kubernetes.io/part-of: observability-stack
+spec:
+  destination:
+    namespace: observability
+    server: https://kubernetes.default.svc
+  source:
+    repoURL: https://charts.bitnami.com/bitnami
+    targetRevision: 12.0.8
+    chart: grafana
+    helm:
+      values: |
+        # Grafana Configuration
+        adminPassword: admin123
+        service:
+          type: ClusterIP
+        persistence:
+          enabled: true
+          size: 10Gi
+        resources:
+          limits:
+            memory: 1Gi
+            cpu: 1000m
+          requests:
+            memory: 512Mi
+            cpu: 500m
+        
+        # Data Sources Configuration
+        datasources:
+          datasources.yaml:
+            apiVersion: 1
+            datasources:
+              - name: Prometheus
+                type: prometheus
+                url: http://prometheus-server.observability.svc.cluster.local:80
+                access: proxy
+                isDefault: true
+                editable: true
+              - name: ClickHouse
+                type: grafana-clickhouse-datasource
+                url: http://clickhouse.observability.svc.cluster.local:8123
+                jsonData:
+                  defaultDatabase: default
+                  port: 8123
+                  server: clickhouse.observability.svc.cluster.local
+                  username: default
+                secureJsonData:
+                  password: clickhouse123
+        
+        # Dashboards Configuration
+        dashboards:
+          default:
+            kubernetes-cluster:
+              gnetId: 7249
+              revision: 1
+              datasource: Prometheus
+            node-exporter:
+              gnetId: 1860
+              revision: 22
+              datasource: Prometheus
+            prometheus:
+              gnetId: 3662
+              revision: 1
+              datasource: Prometheus
+        
+        # Dashboard Providers
+        dashboardProviders:
+          dashboardproviders.yaml:
+            apiVersion: 1
+            providers:
+              - name: 'default'
+                orgId: 1
+                folder: ''
+                type: file
+                disableDeletion: false
+                updateIntervalSeconds: 10
+                allowUiUpdates: true
+                options:
+                  path: /var/lib/grafana/dashboards/default
+        
+        # Install ClickHouse Plugin
+        plugins:
+          - grafana-clickhouse-datasource
+        
+        # Additional Configuration
+        grafana.ini:
+          server:
+            root_url: http://localhost:3000
+          auth.anonymous:
+            enabled: false
+          security:
+            allow_embedding: true
+  project: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true 

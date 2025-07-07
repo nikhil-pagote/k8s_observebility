@@ -12,12 +12,12 @@ name = "deploy_argocd"
 path = "scripts/deploy_argocd.rs"
 
 [[bin]]
-name = "deploy_observability_stack"
-path = "scripts/deploy_observability_stack.rs"
-
-[[bin]]
 name = "cleanup"
 path = "scripts/cleanup.rs"
+
+[[bin]]
+name = "k8s-obs"
+path = "scripts/k8s_obs.rs"
 
 [dependencies]
 tokio = { version = "1.0", features = ["full"] }

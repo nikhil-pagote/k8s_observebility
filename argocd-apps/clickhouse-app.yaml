@@ -5,29 +5,152 @@ metadata:
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "1"
+  labels:
+    app.kubernetes.io/part-of: observability-stack
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:
     repoURL: https://charts.bitnami.com/bitnami
+    targetRevision: 1.0.0
     chart: clickhouse
-    targetRevision: 9.3.8
     helm:
       values: |
-        replicaCount: 1
-        resources:
-          requests:
-            memory: "512Mi"
-            cpu: "250m"
-          limits:
-            memory: "1Gi"
-            cpu: "500m"
-        persistence:
-          enabled: true
-          size: 10Gi
+        # ClickHouse Configuration
+        auth:
+          username: default
+          password: clickhouse123
+        
+        # Service Configuration
         service:
           type: ClusterIP
+        
+        # Persistence
+        persistence:
+          enabled: true
+          size: 20Gi
+        
+        # Resources
+        resources:
+          limits:
+            memory: 2Gi
+            cpu: 2000m
+          requests:
+            memory: 1Gi
+            cpu: 1000m
+        
+        # Replica Configuration
+        replicaCount: 3
+        
+        # Custom Configuration
+        configuration: |
+          <clickhouse>
+            <logger>
+              <level>information</level>
+              <log>/var/log/clickhouse-server/clickhouse-server.log</log>
+              <errorlog>/var/log/clickhouse-server/clickhouse-server.err.log</errorlog>
+              <size>1000M</size>
+              <count>10</count>
+            </logger>
+            
+            <http_port>8123</http_port>
+            <tcp_port>9000</tcp_port>
+            
+            <max_connections>4096</max_connections>
+            <keep_alive_timeout>3</keep_alive_timeout>
+            <max_concurrent_queries>100</max_concurrent_queries>
+            <uncompressed_cache_size>8589934592</uncompressed_cache_size>
+            <mark_cache_size>5368709120</mark_cache_size>
+            
+            <path>/bitnami/clickhouse/data</path>
+            <tmp_path>/bitnami/clickhouse/tmp</tmp_path>
+            
+            <user_directories>
+              <users_xml>
+                <path>/opt/bitnami/clickhouse/conf/users.xml</path>
+              </users_xml>
+            </user_directories>
+            
+            <default_profile>default</default_profile>
+            <default_database>default</default_database>
+            
+            <timezone>UTC</timezone>
+            
+            <remote_servers>
+              <observability_cluster>
+                <shard>
+                  <replica>
+                    <host>clickhouse-shard0-0.clickhouse-headless.observability.svc.cluster.local</host>
+                    <port>9000</port>
+                  </replica>
+                </shard>
+                <shard>
+                  <replica>
+                    <host>clickhouse-shard1-0.clickhouse-headless.observability.svc.cluster.local</host>
+                    <port>9000</port>
+                  </replica>
+                </shard>
+              </observability_cluster>
+            </remote_servers>
+            
+            <macros>
+              <cluster>observability_cluster</cluster>
+              <shard>{shard}</shard>
+              <replica>{replica}</replica>
+            </macros>
+          </clickhouse>
+        
+        # Initialize with observability tables
+        initContainers:
+          - name: init-observability-tables
+            image: curlimages/curl:latest
+            command:
+              - /bin/sh
+              - -c
+              - |
+                echo "Waiting for ClickHouse to be ready..."
+                until curl -s http://clickhouse.observability.svc.cluster.local:8123/ping; do
+                  sleep 5
+                done
+                
+                echo "Creating observability tables..."
+                curl -X POST "http://clickhouse.observability.svc.cluster.local:8123/" \
+                  --data-binary "
+                CREATE TABLE IF NOT EXISTS logs (
+                  timestamp DateTime64(3),
+                  level String,
+                  message String,
+                  service String,
+                  trace_id String,
+                  span_id String,
+                  labels Map(String, String)
+                ) ENGINE = MergeTree()
+                PARTITION BY toYYYYMM(timestamp)
+                ORDER BY (timestamp, level, service);
+                
+                CREATE TABLE IF NOT EXISTS metrics (
+                  timestamp DateTime64(3),
+                  metric_name String,
+                  metric_value Float64,
+                  labels Map(String, String)
+                ) ENGINE = MergeTree()
+                PARTITION BY toYYYYMM(timestamp)
+                ORDER BY (timestamp, metric_name);
+                
+                CREATE TABLE IF NOT EXISTS traces (
+                  timestamp DateTime64(3),
+                  trace_id String,
+                  span_id String,
+                  parent_span_id String,
+                  service_name String,
+                  operation_name String,
+                  duration_ms Float64,
+                  tags Map(String, String)
+                ) ENGINE = MergeTree()
+                PARTITION BY toYYYYMM(timestamp)
+                ORDER BY (timestamp, trace_id, span_id);
+                "
   destination:
     server: https://kubernetes.default.svc
     namespace: observability
