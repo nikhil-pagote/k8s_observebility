@@ -439,9 +439,10 @@ impl KindClusterSetup {
             self.print_status("   Kubeconfig: ~/.kube/config (default)", "white");
             self.print_status("", "white");
             self.print_status("🚀 Next Steps:", "cyan");
-            self.print_status("   1. Run: .\\bin\\deploy_argocd.exe", "white");
-            self.print_status("   2. Access Grafana: http://localhost:30000", "white");
-            self.print_status("   3. Access Prometheus: http://localhost:30090", "white");
+            self.print_status("   1. Run: .\\bin\\k8s-obs.exe deploy-argocd", "white");
+            self.print_status("   2. Access ArgoCD: http://localhost:8080 (after running k8s-obs deploy-argocd)", "white");
+            self.print_status("   3. Deploy observability stack: Use k8s-obs deploy-stack", "white");
+            self.print_status("   4. Access observability stack: Use k8s-obs port-forward", "white");
 
             Ok(true)
         } else {

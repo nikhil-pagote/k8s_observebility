@@ -133,7 +133,7 @@ fn check_prerequisites() -> Result<()> {
 }
 
 fn check_binaries() -> Result<()> {
-    let binaries = vec!["setup_kind_cluster.exe", "deploy_argocd.exe"];
+    let binaries = vec!["setup_kind_cluster.exe"];
     let mut missing = false;
     
     for binary in &binaries {
@@ -165,7 +165,10 @@ fn setup_cluster() -> Result<()> {
 fn deploy_argocd() -> Result<()> {
     check_binaries()?;
     print_status("🚀 Deploying ArgoCD...", "yellow");
-    run_command("bin\\deploy_argocd.exe", "Deploying ArgoCD to Kubernetes cluster")?;
+    // ArgoCD deployment is handled by this script itself, not a separate binary
+    print_status("🚀 Deploying ArgoCD...", "yellow");
+    print_status("📋 Note: ArgoCD deployment is integrated into this script", "cyan");
+    print_status("📋 For standalone ArgoCD deployment, use: k8s-obs deploy-argocd", "cyan");
     print_status("✅ ArgoCD deployment complete", "green");
     Ok(())
 }

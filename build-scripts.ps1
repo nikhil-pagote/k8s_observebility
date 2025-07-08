@@ -115,7 +115,7 @@ Invoke-Command $dockerCmd "Building Rust binaries in Docker container"
 
 # Verify binaries were created
 Write-Status "🔍 Verifying built binaries..." $Yellow
-$binaries = @("setup_kind_cluster.exe", "deploy_argocd.exe", "cleanup.exe", "k8s-obs.exe")
+$binaries = @("setup_kind_cluster.exe", "cleanup.exe", "k8s-obs.exe")
 $allExist = $true
 
 foreach ($binary in $binaries) {
