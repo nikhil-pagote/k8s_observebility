@@ -282,11 +282,6 @@ fn port_forward(namespace: &str) -> Result<()> {
     println!("   Username: admin");
     println!("   Password: kubectl get secret -n observability grafana-admin -o jsonpath='{{.data.GF_SECURITY_ADMIN_PASSWORD}}' | base64 -d");
     println!();
-    println!("🚀 ArgoCD GitOps UI:");
-    println!("   URL: http://localhost:8080");
-    println!("   Username: admin");
-    println!("   Password: kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath='{{.data.password}}' | base64 -d");
-    println!();
     println!("📈 Prometheus Metrics:");
     println!("   URL: http://localhost:9090");
     println!("   No authentication required");
@@ -312,10 +307,9 @@ fn port_forward(namespace: &str) -> Result<()> {
     print_status("🚀 Starting background port-forward jobs...", "cyan");
     
     let pf_commands = vec![
-        ("ArgoCD", format!("kubectl port-forward -n argocd svc/argocd-server 8080:80")),
         ("Grafana", format!("kubectl port-forward -n {} svc/grafana 3000:3000", namespace)),
         ("Prometheus", format!("kubectl port-forward -n {} svc/prometheus-server 9090:80", namespace)),
-        ("Jaeger", format!("kubectl port-forward -n {} svc/jaeger-query 16686:16686", namespace)),
+        ("Jaeger", format!("kubectl port-forward -n {} svc/jaeger-query 16686:80", namespace)),
         ("ClickHouse", format!("kubectl port-forward -n {} svc/clickhouse 8123:8123", namespace)),
     ];
     
@@ -354,14 +348,30 @@ fn port_forward(namespace: &str) -> Result<()> {
     let mut input = String::new();
     io::stdin().read_line(&mut input)?;
     
-    print_status("🛑 Stopping all port-forward jobs...", "cyan");
+    print_status("🛑 Stopping observability stack port-forward jobs...", "cyan");
     
-    // Kill any kubectl port-forward processes
-    let _ = Command::new("taskkill")
-        .args(&["/F", "/IM", "kubectl.exe"])
+    // Kill only the specific port-forward processes for observability stack
+    // This preserves ArgoCD port-forward that was set up by deploy_argocd.rs
+    let kill_commands = vec![
+        "taskkill /F /IM kubectl.exe /FI \"WINDOWTITLE eq kubectl port-forward -n observability svc/grafana 3000:3000\"",
+        "taskkill /F /IM kubectl.exe /FI \"WINDOWTITLE eq kubectl port-forward -n observability svc/prometheus-server 9090:80\"",
+        "taskkill /F /IM kubectl.exe /FI \"WINDOWTITLE eq kubectl port-forward -n observability svc/jaeger-query 16686:80\"",
+        "taskkill /F /IM kubectl.exe /FI \"WINDOWTITLE eq kubectl port-forward -n observability svc/clickhouse 8123:8123\"",
+    ];
+    
+    for cmd in kill_commands {
+        let _ = Command::new("cmd")
+            .args(&["/C", cmd])
+            .output();
+    }
+    
+    // Alternative: Kill processes by command line pattern (more reliable)
+    let _ = Command::new("powershell")
+        .args(&["-Command", "Get-Process -Name kubectl -ErrorAction SilentlyContinue | Where-Object {$_.CommandLine -like '*port-forward*observability*'} | Stop-Process -Force -ErrorAction SilentlyContinue"])
         .output();
     
-    print_status("✅ All port-forward jobs stopped", "green");
+    print_status("✅ Observability stack port-forward jobs stopped", "green");
+    print_status("ℹ️  ArgoCD port-forward (if running) was preserved", "cyan");
     Ok(())
 }
 

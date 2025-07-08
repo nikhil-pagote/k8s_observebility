@@ -12,12 +12,19 @@ spec:
     namespace: observability
     server: https://kubernetes.default.svc
   source:
-    repoURL: https://charts.bitnami.com/bitnami
-    targetRevision: 5.1.23
+    repoURL: https://jaegertracing.github.io/helm-charts
+    targetRevision: 0.71.0
     chart: jaeger
     helm:
       values: |
-        # Jaeger Configuration
+        # Jaeger Configuration - In-Memory Storage
+        storage:
+          type: memory
+          options:
+            memory:
+              maxTraces: 50000
+        
+        # Query service configuration
         query:
           service:
             type: ClusterIP
@@ -28,6 +35,8 @@ spec:
             requests:
               memory: 256Mi
               cpu: 250m
+        
+        # Collector configuration
         collector:
           service:
             type: ClusterIP
@@ -38,17 +47,31 @@ spec:
             requests:
               memory: 256Mi
               cpu: 250m
-        storage:
-          type: memory
-          options:
-            memory:
-              maxTraces: 50000
+        
+        # Disable agent since we're using OpenTelemetry
         agent:
           enabled: false
+        
+        # Disable Cassandra and other storage backends
+        cassandra:
+          enabled: false
+        elasticsearch:
+          enabled: false
+        kafka:
+          enabled: false
+        
+        # Ingress configuration (optional)
+        ingress:
+          enabled: false
+        
+        # Service account configuration
+        serviceAccount:
+          create: true
+          name: jaeger
   project: default
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
-      - CreateNamespace=true
+      - CreateNamespace=true 

@@ -45,10 +45,12 @@ spec:
           persistence:
             enabled: true
             size: 5Gi
+        # Disable kube-state-metrics since OpenTelemetry handles metrics collection
         kube-state-metrics:
-          enabled: true
+          enabled: false
+        # Disable node-exporter since OpenTelemetry handles metrics collection
         node-exporter:
-          enabled: true
+          enabled: false
   project: default
   syncPolicy:
     automated:
