@@ -43,16 +43,6 @@ spec:
                 access: proxy
                 isDefault: true
                 editable: true
-              - name: ClickHouse
-                type: grafana-clickhouse-datasource
-                url: http://clickhouse.observability.svc.cluster.local:8123
-                jsonData:
-                  defaultDatabase: default
-                  port: 8123
-                  server: clickhouse.observability.svc.cluster.local
-                  username: default
-                secureJsonData:
-                  password: clickhouse123
         
         # Dashboards Configuration
         dashboards:
@@ -84,10 +74,6 @@ spec:
                 allowUiUpdates: true
                 options:
                   path: /var/lib/grafana/dashboards/default
-        
-        # Install ClickHouse Plugin
-        plugins:
-          - grafana-clickhouse-datasource
         
         # Additional Configuration
         grafana.ini:
