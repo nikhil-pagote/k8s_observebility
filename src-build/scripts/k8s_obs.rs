@@ -115,8 +115,11 @@ fn check_prerequisites() -> Result<()> {
     let tools = vec!["kubectl", "kind", "docker"];
     
     for tool in tools {
+        let cmd = format!("where {}", tool);
+        print_status(&format!("📋 Checking: {}", cmd), "cyan");
+        
         let output = Command::new("cmd")
-            .args(&["/C", &format!("where {}", tool)])
+            .args(&["/C", &cmd])
             .output();
         
         match output {
@@ -211,6 +214,7 @@ fn show_status(namespace: &str) -> Result<()> {
     for (cmd, title) in commands {
         println!("\n{}:", title);
         println!("{}", "─".repeat(title.len() + 1));
+        print_status(&format!("📋 Executing: {}", cmd), "cyan");
         
         let output = Command::new("cmd")
             .args(&["/C", cmd])
@@ -254,6 +258,7 @@ fn show_logs(namespace: &str) -> Result<()> {
     for (cmd, title) in log_commands {
         println!("\n{}:", title);
         println!("{}", "─".repeat(title.len() + 1));
+        print_status(&format!("📋 Executing: {}", cmd), "cyan");
         
         let output = Command::new("cmd")
             .args(&["/C", cmd])
@@ -363,14 +368,17 @@ fn port_forward(namespace: &str) -> Result<()> {
     ];
     
     for cmd in kill_commands {
+        print_status(&format!("📋 Executing: {}", cmd), "cyan");
         let _ = Command::new("cmd")
             .args(&["/C", cmd])
             .output();
     }
     
     // Alternative: Kill processes by command line pattern (more reliable)
+    let powershell_cmd = "Get-Process -Name kubectl -ErrorAction SilentlyContinue | Where-Object {$_.CommandLine -like '*port-forward*observability*'} | Stop-Process -Force -ErrorAction SilentlyContinue";
+    print_status(&format!("📋 Executing PowerShell: {}", powershell_cmd), "cyan");
     let _ = Command::new("powershell")
-        .args(&["-Command", "Get-Process -Name kubectl -ErrorAction SilentlyContinue | Where-Object {$_.CommandLine -like '*port-forward*observability*'} | Stop-Process -Force -ErrorAction SilentlyContinue"])
+        .args(&["-Command", powershell_cmd])
         .output();
     
     print_status("✅ Observability stack port-forward jobs stopped", "green");
@@ -379,55 +387,44 @@ fn port_forward(namespace: &str) -> Result<()> {
 }
 
 fn get_urls(namespace: &str) -> Result<()> {
-    print_status("🌐 Service URLs", "cyan");
-    println!("==============");
+    print_status("🌐 Service URLs & Access Information", "cyan");
+    println!("{}", "=".repeat(40));
+    println!();
+    println!("📋 Note: Services use ClusterIP in Kind cluster");
+    println!("📋 Use 'k8s-obs port-forward' to access services locally");
+    println!();
     
     let services = vec![
-        ("argocd-server", "argocd", "ArgoCD UI"),
-        ("grafana", namespace, "Grafana"),
-        ("prometheus-server", namespace, "Prometheus"),
-        ("clickhouse", namespace, "ClickHouse"),
-        ("jaeger-query", namespace, "Jaeger UI"),
+        ("argocd-server", "argocd", "ArgoCD UI", "8080", "admin/admin"),
+        ("grafana", namespace, "Grafana", "3000", "admin/(see password command below)"),
+        ("prometheus-server", namespace, "Prometheus", "9090", "No authentication"),
+        ("clickhouse", namespace, "ClickHouse", "8123", "default/(see password command below)"),
+        ("jaeger-query", namespace, "Jaeger UI", "16686", "No authentication"),
     ];
     
-    for (service, ns, name) in services {
-        println!("\n{}:", name);
+    for (service, ns, name, port, credentials) in services {
+        println!("{}:", name);
+        println!("  🌐 URL: http://localhost:{}", port);
+        println!("  🔐 Credentials: {}", credentials);
         
-        let cmd = format!("kubectl get svc {} -n {} -o jsonpath='{{.status.loadBalancer.ingress[0].ip}}'", service, ns);
-        let output = Command::new("cmd")
-            .args(&["/C", &cmd])
-            .output();
-        
-        match output {
-            Ok(output) => {
-                if output.status.success() && !output.stdout.is_empty() {
-                    let url = String::from_utf8_lossy(&output.stdout);
-                    println!("{}", url);
-                } else {
-                    let default_port = match name {
-                        "ArgoCD UI" => "8080",
-                        "Grafana" => "3000",
-                        "Prometheus" => "9090",
-                        "ClickHouse" => "8123",
-                        "Jaeger UI" => "16686",
-                        _ => "80",
-                    };
-                    println!("http://localhost:{} (use port-forward)", default_port);
-                }
+        // Show password commands for services that need them
+        match name {
+            "Grafana" => {
+                println!("  📋 Get Grafana password:");
+                println!("     kubectl get secret -n {} grafana-admin -o jsonpath='{{.data.GF_SECURITY_ADMIN_PASSWORD}}' | base64 -d", namespace);
             }
-            Err(_) => {
-                let default_port = match name {
-                    "ArgoCD UI" => "8080",
-                    "Grafana" => "3000",
-                    "Prometheus" => "9090",
-                    "ClickHouse" => "8123",
-                    "Jaeger UI" => "16686",
-                    _ => "80",
-                };
-                println!("http://localhost:{} (use port-forward)", default_port);
+            "ClickHouse" => {
+                println!("  📋 Get ClickHouse password:");
+                println!("     kubectl get secret -n {} clickhouse -o jsonpath='{{.data.admin-password}}' | base64 -d", namespace);
             }
+            _ => {}
         }
+        println!();
     }
+    
+    println!("{}", "=".repeat(40));
+    println!("🚀 To start port-forwarding, run: k8s-obs port-forward");
+    println!("📊 To check service status, run: k8s-obs status");
     
     Ok(())
 }
