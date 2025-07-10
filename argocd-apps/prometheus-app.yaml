@@ -20,6 +20,7 @@ spec:
         # Prometheus Configuration
         server:
           retention: 15d
+          replicas: 1
           resources:
             limits:
               memory: 2Gi
@@ -33,6 +34,14 @@ spec:
           service:
             type: ClusterIP
             port: 9090
+          # Custom scrape configuration to scrape from OpenTelemetry Collector
+          extraScrapeConfigs:
+            - job_name: 'opentelemetry-collector'
+              static_configs:
+                - targets: ['opentelemetry-collector-metrics.observability.svc.cluster.local:9464']
+              metrics_path: /metrics
+              scrape_interval: 15s
+              scrape_timeout: 10s
         alertmanager:
           enabled: true
           resources:

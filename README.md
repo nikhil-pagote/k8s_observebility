@@ -115,18 +115,119 @@ cd k8s_observebility
 ### 4. Access the UIs
 
 ```powershell
-# Set up port forwarding for observability stack
-.\bin\k8s-obs.exe port-forward
+# Set up Traefik ingress for observability stack
+.\bin\k8s-obs.exe setup-ingress
 ```
 
 **Access URLs:**
-- **Grafana**: http://localhost:3000 (admin/password from secret)
-- **Prometheus**: http://localhost:9090
-- **Jaeger**: http://localhost:16686
-- **ClickHouse**: http://localhost:8123
-- **ArgoCD**: http://localhost:8080 (admin/password from secret)
+- **Traefik Dashboard**: http://localhost:30080/traefik (admin/admin)
+- **Grafana**: http://localhost:30080/grafana (admin/admin123)
+- **Prometheus**: http://localhost:30080/prometheus
+- **Jaeger**: http://localhost:30080/jaeger
+- **ClickHouse**: http://localhost:30080/clickhouse
+- **ArgoCD**: http://localhost:30080/argocd (admin/admin)
 
-> **Note**: ArgoCD port-forwarding is handled automatically by the `deploy_argocd.rs` script and is preserved when using the observability stack port-forward command.
+> **Note**: All services are accessible through Traefik Ingress Controller on port 30080 using path-based routing. No port-forwarding required!
+
+## 📊 Grafana Configuration
+
+### Auto-Provisioned Data Sources
+
+The Grafana deployment is configured to automatically provision:
+
+- **Prometheus**: Primary metrics data source
+  - URL: `http://prometheus-server.observability.svc.cluster.local:80`
+  - Default data source for dashboards
+
+### Auto-Provisioned Dashboards
+
+The following dashboards are automatically imported:
+
+- **Kubernetes Cluster Overview** (ID: 7249)
+- **Node Exporter** (ID: 1860) 
+- **Prometheus Overview** (ID: 3662)
+
+### Manual Data Source Configuration
+
+If you need to add additional data sources manually:
+
+1. **Access Grafana**: http://localhost:3000
+2. **Login**: admin / admin123
+3. **Go to**: Configuration (⚙️) → Data Sources
+4. **Click**: "Add data source"
+
+#### Adding Prometheus (if not auto-provisioned)
+
+1. Select **Prometheus**
+2. **URL**: `http://prometheus-server.observability.svc.cluster.local:80`
+3. **Access**: Server (default)
+4. **Save & Test**
+
+#### Adding ClickHouse (for logs)
+
+1. Install ClickHouse plugin first:
+   - Go to Configuration (⚙️) → Plugins
+   - Search for "ClickHouse"
+   - Install the plugin
+2. Add ClickHouse data source:
+   - **Type**: ClickHouse
+   - **URL**: `http://clickhouse.observability.svc.cluster.local:8123`
+   - **Database**: default
+   - **Username**: default
+   - **Password**: `clickhouse123` (get from secret)
+
+### Manual Dashboard Import
+
+To import additional dashboards:
+
+1. **Access Grafana**: http://localhost:3000
+2. **Go to**: Dashboards → Import
+3. **Choose method**:
+   - **Upload JSON**: Upload dashboard JSON file
+   - **Import from Grafana.com**: Enter dashboard ID
+   - **Paste JSON**: Paste dashboard configuration
+
+#### Popular Dashboard IDs
+
+- **Kubernetes Cluster**: 7249
+- **Node Exporter**: 1860
+- **Prometheus**: 3662
+- **Jaeger**: 13332
+- **OpenTelemetry Collector**: 13332
+
+#### Importing via Grafana.com
+
+1. Click **Import**
+2. Enter **Grafana.com Dashboard URL** or **Dashboard ID**
+3. Select **Data Source** (Prometheus for metrics)
+4. Click **Load**
+5. Review and click **Import**
+
+### Dashboard Configuration
+
+#### Creating Custom Dashboards
+
+1. **Go to**: Dashboards → New Dashboard
+2. **Add Panel**: Click "Add panel"
+3. **Query**: Use PromQL for Prometheus data
+4. **Visualization**: Choose chart type
+5. **Save**: Name and save dashboard
+
+#### Example PromQL Queries
+
+```promql
+# CPU Usage
+rate(container_cpu_usage_seconds_total{container!=""}[5m])
+
+# Memory Usage
+container_memory_usage_bytes{container!=""}
+
+# Pod Status
+kube_pod_status_phase
+
+# OpenTelemetry Collector Metrics
+otelcol_processor_batch_batch_send_size
+```
 
 ## 📦 Components
 
@@ -146,6 +247,7 @@ cd k8s_observebility
 - **🔍 In-Memory Jaeger**: Uses official Jaeger chart with in-memory storage (no Cassandra dependencies)
 - **📊 Optimized Prometheus**: Disabled redundant components since OpenTelemetry handles metrics collection
 - **🚀 Smart Port-Forwarding**: Separate port-forward management for ArgoCD and observability stack
+- **✅ Improved Error Reporting**: Enhanced port-forwarding with accurate success/failure reporting
 
 ### Sample Applications
 
@@ -156,7 +258,7 @@ cd k8s_observebility
 
 All components are deployed via separate ArgoCD applications in `argocd-apps/`:
 
-- `grafana-app.yaml` - Grafana visualization platform
+- `grafana-app.yaml` - Grafana visualization platform (with auto-provisioned data sources)
 - `prometheus-app.yaml` - Prometheus metrics collection (optimized for OpenTelemetry)
 - `jaeger-app.yaml` - Jaeger distributed tracing (in-memory storage)
 - `clickhouse-app.yaml` - ClickHouse log storage
@@ -181,24 +283,26 @@ All components are deployed via separate ArgoCD applications in `argocd-apps/`:
 
 # Individual commands
 .\bin\k8s-obs.exe setup-cluster      # Create Kind cluster
-.\bin\k8s-obs.exe deploy-argocd      # Deploy ArgoCD (includes port-forwarding)
+.\bin\k8s-obs.exe deploy-argocd      # Deploy ArgoCD
 .\bin\k8s-obs.exe deploy-stack       # Deploy observability stack
 .\bin\k8s-obs.exe deploy-sample-apps # Deploy sample applications
-.\bin\k8s-obs.exe port-forward       # Set up port forwarding (observability only)
+.\bin\k8s-obs.exe setup-ingress      # Set up Traefik ingress access
 .\bin\k8s-obs.exe status            # Check component status
 .\bin\k8s-obs.exe logs              # View component logs
-.\bin\k8s-obs.exe get-urls          # Get service URLs
+.\bin\k8s-obs.exe get-urls          # Get service URLs and credentials
 .\bin\k8s-obs.exe cleanup           # Remove applications
 .\bin\k8s-obs.exe clean-all         # Complete cleanup
 ```
 
-### Port Forwarding
+### Ingress Access
 
-The project uses a smart port-forwarding approach:
+The project uses Traefik Ingress Controller for external access:
 
-- **ArgoCD Port-Forward**: Automatically set up by `deploy_argocd.rs` script
-- **Observability Stack Port-Forward**: Managed by `k8s-obs.exe port-forward`
-- **Preservation**: ArgoCD port-forward is preserved when stopping observability port-forward
+- **Traefik Ingress**: Lightweight, modern ingress controller with dashboard
+- **Single Port Access**: All services accessible on port 30080
+- **Path-based Routing**: Each service accessible via path (e.g., /grafana, /prometheus)
+- **No Port Forwarding**: Eliminates the need for multiple kubectl port-forward commands
+- **Built-in Metrics**: Traefik provides its own metrics for monitoring
 
 ### Monitoring Your Applications
 
@@ -212,10 +316,12 @@ The project uses a smart port-forwarding approach:
 
 ### Common Issues
 
-1. **Port Forwarding Not Working**
-   - Ensure no other services are using the ports
-   - Check if pods are running: `kubectl get pods -n observability`
-   - ArgoCD port-forward is separate from observability port-forward
+1. **Ingress Access Not Working**
+   - Check if Traefik is running: `kubectl get pods -n traefik`
+   - Verify ingress resources: `kubectl get ingress -n observability`
+   - Ensure hosts file entries are added: `k8s-obs setup-ingress`
+   - Check if port 30080 is accessible: `curl http://localhost:30080`
+   - Verify path-based routing: `curl http://localhost:30080/grafana` should return Grafana
 
 2. **Jaeger "Progressing" Status**
    - This is normal for in-memory Jaeger deployments
@@ -229,9 +335,19 @@ The project uses a smart port-forwarding approach:
 4. **ClickHouse Connection Issues**
    - Verify ClickHouse pods are running
    - Check service endpoints: `kubectl get svc -n observability`
+   - Default password: `clickhouse123`
 
 5. **OpenTelemetry Collector Issues**
    - Check collector logs: `kubectl logs -n observability -l app.kubernetes.io/name=opentelemetry-collector`
+
+6. **Grafana Data Sources Not Showing**
+   - Check if auto-provisioning worked: Configuration → Data Sources
+   - Verify Prometheus service is accessible
+   - Check Grafana logs for provisioning errors
+
+7. **Helm Schema Validation Errors**
+   - Fixed: OpenTelemetry service.ports configuration
+   - Fixed: Prometheus extraScrapeConfigs array format
 
 ### Useful Commands
 
@@ -248,8 +364,15 @@ kubectl logs -n observability <pod-name>
 # Check services
 kubectl get svc -n observability
 
-# Check ArgoCD port-forward
-kubectl get svc -n argocd argocd-server
+# Check Traefik ingress
+kubectl get pods -n traefik
+kubectl get ingress -n observability
+
+# Get Grafana password
+kubectl get secret -n observability grafana-admin -o jsonpath='{.data.GF_SECURITY_ADMIN_PASSWORD}' | base64 -d
+
+# Get ClickHouse password
+kubectl get secret -n observability clickhouse -o jsonpath='{.data.admin-password}' | base64 -d
 ```
 
 ## 🏭 Production Considerations

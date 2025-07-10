@@ -1,0 +1,75 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: observability-ingress
+  namespace: observability
+  annotations:
+    kubernetes.io/ingress.class: "traefik"
+    traefik.ingress.kubernetes.io/router.entrypoints: "web"
+    traefik.ingress.kubernetes.io/router.tls: "false"
+    traefik.ingress.kubernetes.io/service.sticky.cookie: "true"
+    traefik.ingress.kubernetes.io/service.sticky.cookie.name: "observability-sticky"
+    traefik.ingress.kubernetes.io/middlewares.observability-headers.headers.customrequestheaders.X-Forwarded-Proto: "http"
+    traefik.ingress.kubernetes.io/middlewares.observability-stripprefix.stripprefix.prefixes: "/grafana,/prometheus,/jaeger,/clickhouse,/argocd,/traefik"
+  labels:
+    app.kubernetes.io/part-of: observability-stack
+    app.kubernetes.io/managed-by: argocd
+spec:
+  rules:
+  - host: localhost
+    http:
+      paths:
+      - path: /grafana
+        pathType: Prefix
+        backend:
+          service:
+            name: grafana
+            port:
+              number: 3000
+      - path: /prometheus
+        pathType: Prefix
+        backend:
+          service:
+            name: prometheus-server
+            port:
+              number: 80
+      - path: /jaeger
+        pathType: Prefix
+        backend:
+          service:
+            name: jaeger-query
+            port:
+              number: 80
+      - path: /clickhouse
+        pathType: Prefix
+        backend:
+          service:
+            name: clickhouse
+            port:
+              number: 8123
+      - path: /argocd
+        pathType: Prefix
+        backend:
+          service:
+            name: argocd-server
+            port:
+              number: 443
+      - path: /traefik
+        pathType: Prefix
+        backend:
+          service:
+            name: traefik
+            port:
+              number: 9000
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: observability-hosts
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: observability-stack
+    app.kubernetes.io/managed-by: argocd
+data:
+  hosts.txt: |
+    127.0.0.1 localhost 

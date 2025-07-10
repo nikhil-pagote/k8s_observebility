@@ -6,11 +6,13 @@ metadata:
   namespace: argocd
 
 resources:
+  - traefik-app.yaml
   - grafana-app.yaml
   - prometheus-app.yaml
   - jaeger-app.yaml
   - clickhouse-app.yaml
   - opentelemetry-collector-app.yaml
+  - observability-ingress.yaml
 
 labels:
   - pairs:

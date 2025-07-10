@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use colored::*;
 use std::process::{Command, Stdio};
-use std::io;
+
 use std::thread;
 use std::time::Duration;
 use anyhow::{Result, Context};
@@ -34,8 +34,8 @@ enum Commands {
     Status,
     /// Show logs for key components
     Logs,
-    /// Setup port forwarding for local access
-    PortForward,
+    /// Setup ingress access for local access
+    SetupIngress,
     /// Get service URLs
     GetUrls,
     /// Cleanup applications
@@ -59,7 +59,7 @@ fn main() -> Result<()> {
         Commands::DeploySampleApps => deploy_sample_apps(&cli.namespace)?,
         Commands::Status => show_status(&cli.namespace)?,
         Commands::Logs => show_logs(&cli.namespace)?,
-        Commands::PortForward => port_forward(&cli.namespace)?,
+        Commands::SetupIngress => setup_ingress(&cli.namespace)?,
         Commands::GetUrls => get_urls(&cli.namespace)?,
         Commands::Cleanup => cleanup(&cli.namespace)?,
         Commands::CleanAll => clean_all(&cli.namespace)?,
@@ -160,6 +160,43 @@ fn check_binaries() -> Result<()> {
 fn setup_cluster() -> Result<()> {
     check_binaries()?;
     print_status("🔧 Setting up Kind cluster...", "yellow");
+    
+    // Check if cluster already exists
+    let cluster_check = Command::new("kind")
+        .args(&["get", "clusters"])
+        .output();
+    
+    match cluster_check {
+        Ok(output) => {
+            let clusters = String::from_utf8_lossy(&output.stdout);
+            if clusters.contains("observability-cluster") {
+                print_status("ℹ️  Kind cluster 'observability-cluster' already exists", "yellow");
+                print_status("📋 Checking cluster status...", "cyan");
+                
+                let status_check = Command::new("kubectl")
+                    .args(&["cluster-info"])
+                    .output();
+                
+                match status_check {
+                    Ok(status_output) => {
+                        if status_output.status.success() {
+                            print_status("✅ Existing cluster is healthy and ready", "green");
+                            return Ok(());
+                        } else {
+                            print_status("⚠️  Existing cluster may have issues", "yellow");
+                        }
+                    }
+                    Err(_) => {
+                        print_status("⚠️  Cannot connect to existing cluster", "yellow");
+                    }
+                }
+            }
+        }
+        Err(_) => {
+            print_status("⚠️  Cannot check existing clusters", "yellow");
+        }
+    }
+    
     run_command("bin\\setup_kind_cluster.exe", "Creating and configuring Kind cluster")?;
     print_status("✅ Kind cluster setup complete", "green");
     Ok(())
@@ -168,10 +205,41 @@ fn setup_cluster() -> Result<()> {
 fn deploy_argocd() -> Result<()> {
     check_binaries()?;
     print_status("🚀 Deploying ArgoCD...", "yellow");
-    // ArgoCD deployment is handled by this script itself, not a separate binary
-    print_status("🚀 Deploying ArgoCD...", "yellow");
-    print_status("📋 Note: ArgoCD deployment is integrated into this script", "cyan");
-    print_status("📋 For standalone ArgoCD deployment, use: k8s-obs deploy-argocd", "cyan");
+    
+    // Check if ArgoCD is already installed
+    let argocd_check = Command::new("kubectl")
+        .args(&["get", "namespace", "argocd"])
+        .output();
+    
+    match argocd_check {
+        Ok(output) => {
+            if output.status.success() {
+                print_status("ℹ️  ArgoCD namespace already exists", "yellow");
+                print_status("📋 Checking ArgoCD deployment status...", "cyan");
+                
+                let pods_check = Command::new("kubectl")
+                    .args(&["get", "pods", "-n", "argocd"])
+                    .output();
+                
+                match pods_check {
+                    Ok(pods_output) => {
+                        if pods_output.status.success() {
+                            let pods = String::from_utf8_lossy(&pods_output.stdout);
+                            if pods.contains("Running") {
+                                print_status("✅ ArgoCD is already deployed and running", "green");
+                                return Ok(());
+                            }
+                        }
+                    }
+                    Err(_) => {}
+                }
+            }
+        }
+        Err(_) => {}
+    }
+    
+    // Deploy ArgoCD using the separate binary
+    run_command("bin\\deploy_argocd.exe", "Deploying ArgoCD to the cluster")?;
     print_status("✅ ArgoCD deployment complete", "green");
     Ok(())
 }
@@ -186,6 +254,11 @@ fn deploy_stack(_namespace: &str) -> Result<()> {
 
 fn deploy_sample_apps(namespace: &str) -> Result<()> {
     print_status("🚀 Deploying sample applications...", "yellow");
+    
+    // Create namespace first if it doesn't exist
+    let namespace_cmd = format!("kubectl create namespace {} --dry-run=client -o yaml | kubectl apply -f -", namespace);
+    run_command(&namespace_cmd, "Creating observability namespace")?;
+    
     let cmd = format!(
         "kubectl apply -f apps/load-generator/ -f apps/sample-app/deployment-basic.yaml -n {}",
         namespace
@@ -279,110 +352,189 @@ fn show_logs(namespace: &str) -> Result<()> {
     Ok(())
 }
 
-fn port_forward(namespace: &str) -> Result<()> {
-    print_status("🔗 Setting up port forwarding...", "cyan");
-    println!();
-    print_status("🌐 Service URLs & Credentials", "cyan");
-    println!("{}", "=".repeat(40));
-    println!();
-    println!("📊 Grafana Dashboard:");
-    println!("   URL: http://localhost:3000");
-    println!("   Username: admin");
-    println!("   Password: kubectl get secret -n observability grafana-admin -o jsonpath='{{.data.GF_SECURITY_ADMIN_PASSWORD}}' | base64 -d");
-    println!();
-    println!("📈 Prometheus Metrics:");
-    println!("   URL: http://localhost:9090");
-    println!("   No authentication required");
-    println!();
-    println!("🔍 Jaeger Tracing:");
-    println!("   URL: http://localhost:16686");
-    println!("   No authentication required");
-    println!();
-    println!("🗄️ ClickHouse Database:");
-    println!("   URL: http://localhost:8123");
-    println!("   Username: default");
-    println!("   Password: kubectl get secret -n observability clickhouse -o jsonpath='{{.data.password}}' | base64 -d");
-    println!();
-    println!("{}", "=".repeat(40));
-    println!();
-    println!("Note: If port-forward fails, check pod status with:");
-    println!("  kubectl get pods -n {}", namespace);
-    println!("  kubectl describe pod -n {} <pod-name>", namespace);
-    println!();
-    println!("Press Enter to stop port forwarding...");
+fn setup_ingress(namespace: &str) -> Result<()> {
+    print_status("🔗 Setting up Traefik Ingress Controller...", "cyan");
     println!();
     
-    print_status("🚀 Starting background port-forward jobs...", "cyan");
+    // Check if Traefik is running
+    print_status("🔍 Checking Traefik status...", "yellow");
+    let traefik_check = Command::new("kubectl")
+        .args(&["get", "pods", "-n", "traefik", "--no-headers"])
+        .output();
     
-    let pf_commands = vec![
-        ("Grafana", format!("kubectl port-forward -n {} svc/grafana 3000:3000", namespace)),
-        ("Prometheus", format!("kubectl port-forward -n {} svc/prometheus-server 9090:80", namespace)),
-        ("Jaeger", format!("kubectl port-forward -n {} svc/jaeger-query 16686:80", namespace)),
-        ("ClickHouse", format!("kubectl port-forward -n {} svc/clickhouse 8123:8123", namespace)),
-    ];
-    
-    for (name, cmd) in &pf_commands {
-        print_status(&format!("[Port-Forward] {}: {}", name, cmd), "cyan");
-        
-        let mut child = Command::new("cmd")
-            .args(&["/C", cmd])
-            .spawn()
-            .context(format!("Failed to start port-forward for {}", name))?;
-        
-        // Give it a moment to start
-        thread::sleep(Duration::from_millis(500));
-        
-        // Check if it's still running
-        match child.try_wait() {
-            Ok(Some(status)) => {
-                if !status.success() {
-                    print_status(&format!("❌ Port-forward for {} failed to start", name), "red");
+    match traefik_check {
+        Ok(output) => {
+            if output.status.success() {
+                let pods = String::from_utf8_lossy(&output.stdout);
+                if pods.contains("Running") {
+                    print_status("✅ Traefik is running", "green");
+                } else {
+                    print_status("⚠️ Traefik pods are not ready", "yellow");
+                    print_status("📋 Waiting for Traefik to be ready...", "cyan");
+                    
+                    // Wait for Traefik to be ready
+                    let mut attempts = 0;
+                    while attempts < 30 {
+                        thread::sleep(Duration::from_secs(5));
+                        let status_check = Command::new("kubectl")
+                            .args(&["get", "pods", "-n", "traefik", "--no-headers"])
+                            .output();
+                        
+                        if let Ok(status_output) = status_check {
+                            let status_pods = String::from_utf8_lossy(&status_output.stdout);
+                            if status_pods.contains("Running") {
+                                print_status("✅ Traefik is now ready", "green");
+                                break;
+                            }
+                        }
+                        attempts += 1;
+                        if attempts % 6 == 0 {
+                            print_status(&format!("⏳ Still waiting for Traefik... ({}s)", attempts * 5), "yellow");
+                        }
+                    }
                 }
+            } else {
+                print_status("❌ Traefik namespace not found", "red");
+                print_status("📋 Deploying Traefik first...", "cyan");
+                deploy_stack(namespace)?;
             }
-            Ok(None) => {
-                print_status(&format!("✅ {} port-forward started", name), "green");
-            }
-            Err(e) => {
-                print_status(&format!("❌ Error checking {} port-forward: {}", name, e), "red");
-            }
+        }
+        Err(_) => {
+            print_status("❌ Cannot check Traefik status", "red");
+            print_status("📋 Deploying Traefik first...", "cyan");
+            deploy_stack(namespace)?;
         }
     }
     
-    print_status("✅ All port-forward jobs started successfully", "green");
-    println!("Background jobs running: {} jobs", pf_commands.len());
-    println!();
-    println!("Press Enter to stop all port-forward jobs...");
-    
-    let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
-    
-    print_status("🛑 Stopping observability stack port-forward jobs...", "cyan");
-    
-    // Kill only the specific port-forward processes for observability stack
-    // This preserves ArgoCD port-forward that was set up by deploy_argocd.rs
-    let kill_commands = vec![
-        "taskkill /F /IM kubectl.exe /FI \"WINDOWTITLE eq kubectl port-forward -n observability svc/grafana 3000:3000\"",
-        "taskkill /F /IM kubectl.exe /FI \"WINDOWTITLE eq kubectl port-forward -n observability svc/prometheus-server 9090:80\"",
-        "taskkill /F /IM kubectl.exe /FI \"WINDOWTITLE eq kubectl port-forward -n observability svc/jaeger-query 16686:80\"",
-        "taskkill /F /IM kubectl.exe /FI \"WINDOWTITLE eq kubectl port-forward -n observability svc/clickhouse 8123:8123\"",
-    ];
-    
-    for cmd in kill_commands {
-        print_status(&format!("📋 Executing: {}", cmd), "cyan");
-        let _ = Command::new("cmd")
-            .args(&["/C", cmd])
-            .output();
-    }
-    
-    // Alternative: Kill processes by command line pattern (more reliable)
-    let powershell_cmd = "Get-Process -Name kubectl -ErrorAction SilentlyContinue | Where-Object {$_.CommandLine -like '*port-forward*observability*'} | Stop-Process -Force -ErrorAction SilentlyContinue";
-    print_status(&format!("📋 Executing PowerShell: {}", powershell_cmd), "cyan");
-    let _ = Command::new("powershell")
-        .args(&["-Command", powershell_cmd])
+    // Check if ingress is configured
+    print_status("🔍 Checking ingress configuration...", "yellow");
+    let ingress_check = Command::new("kubectl")
+        .args(&["get", "ingress", "-n", namespace])
         .output();
     
-    print_status("✅ Observability stack port-forward jobs stopped", "green");
-    print_status("ℹ️  ArgoCD port-forward (if running) was preserved", "cyan");
+    match ingress_check {
+        Ok(output) => {
+            if output.status.success() {
+                print_status("✅ Ingress resources found", "green");
+            } else {
+                print_status("⚠️ Ingress resources not found", "yellow");
+                print_status("📋 Applying ingress configuration...", "cyan");
+                run_command("kubectl apply -f argocd-apps/observability-ingress.yaml", "Applying ingress configuration")?;
+            }
+        }
+        Err(_) => {
+            print_status("❌ Cannot check ingress status", "red");
+            print_status("📋 Applying ingress configuration...", "cyan");
+            run_command("kubectl apply -f argocd-apps/observability-ingress.yaml", "Applying ingress configuration")?;
+        }
+    }
+    
+    // Setup hosts file entries
+    print_status("📝 Setting up local hosts file entries...", "cyan");
+    setup_hosts_file()?;
+    
+    // Display access information
+    print_status("🌐 Ingress Access Information", "cyan");
+    println!("{}", "=".repeat(40));
+    println!();
+    println!("🚀 Traefik Dashboard:");
+    println!("   URL: http://localhost:30080/traefik");
+    println!("   Username: admin");
+    println!("   Password: admin");
+    println!();
+    println!("📊 Grafana Dashboard:");
+    println!("   URL: http://localhost:30080/grafana");
+    println!("   Username: admin");
+    println!("   Password: admin123");
+    println!();
+    println!("📈 Prometheus Metrics:");
+    println!("   URL: http://localhost:30080/prometheus");
+    println!("   No authentication required");
+    println!();
+    println!("🔍 Jaeger Tracing:");
+    println!("   URL: http://localhost:30080/jaeger");
+    println!("   No authentication required");
+    println!();
+    println!("🗄️ ClickHouse Database:");
+    println!("   URL: http://localhost:30080/clickhouse");
+    println!("   Username: default");
+    println!("   Password: clickhouse123");
+    println!();
+    println!("🎯 ArgoCD UI:");
+    println!("   URL: http://localhost:30080/argocd");
+    println!("   Username: admin");
+    println!("   Password: admin");
+    println!();
+    println!("{}", "=".repeat(40));
+    println!();
+    println!("📋 Note: All services are accessible via path-based routing on localhost:30080");
+    println!("📋 No port-forwarding required - everything works through Traefik!");
+    println!();
+    println!("🔧 To check ingress status:");
+    println!("   kubectl get ingress -n {}", namespace);
+    println!("   kubectl get pods -n traefik");
+    println!();
+    
+    Ok(())
+}
+
+fn setup_hosts_file() -> Result<()> {
+    print_status("📝 Adding hosts file entries...", "cyan");
+    
+    let hosts_entries = vec![
+        "127.0.0.1 localhost",
+    ];
+    
+    // Check if entries already exist
+    let hosts_path = r"C:\Windows\System32\drivers\etc\hosts";
+    let hosts_content = std::fs::read_to_string(hosts_path)
+        .context("Failed to read hosts file")?;
+    
+    let mut needs_update = false;
+    for entry in &hosts_entries {
+        if !hosts_content.contains(entry) {
+            needs_update = true;
+            break;
+        }
+    }
+    
+    if needs_update {
+        print_status("📝 Adding new hosts entries...", "yellow");
+        
+        // Create backup
+        let backup_path = format!("{}.backup.{}", hosts_path, chrono::Utc::now().timestamp());
+        std::fs::copy(hosts_path, &backup_path)
+            .context("Failed to create hosts file backup")?;
+        print_status(&format!("✅ Backup created: {}", backup_path), "green");
+        
+        // Add entries
+        let mut new_content = hosts_content.clone();
+        new_content.push_str("\n# Kubernetes Observability Stack - Added by k8s-obs\n");
+        for entry in &hosts_entries {
+            new_content.push_str(&format!("{}\n", entry));
+        }
+        
+        // Write with elevated privileges (this might fail on Windows)
+        match std::fs::write(hosts_path, new_content) {
+            Ok(_) => {
+                print_status("✅ Hosts file updated successfully", "green");
+            }
+            Err(_e) => {
+                print_status("⚠️ Could not update hosts file automatically", "yellow");
+                print_status("📋 Please add these entries manually to C:\\Windows\\System32\\drivers\\etc\\hosts:", "cyan");
+                println!();
+                for entry in hosts_entries {
+                    println!("   {}", entry);
+                }
+                println!();
+                print_status("📋 Or run PowerShell as Administrator and execute:", "cyan");
+                println!("   Add-Content -Path 'C:\\Windows\\System32\\drivers\\etc\\hosts' -Value '127.0.0.1 localhost'");
+            }
+        }
+    } else {
+        print_status("✅ Hosts file entries already exist", "green");
+    }
+    
     Ok(())
 }
 
@@ -390,41 +542,30 @@ fn get_urls(namespace: &str) -> Result<()> {
     print_status("🌐 Service URLs & Access Information", "cyan");
     println!("{}", "=".repeat(40));
     println!();
-    println!("📋 Note: Services use ClusterIP in Kind cluster");
-    println!("📋 Use 'k8s-obs port-forward' to access services locally");
+    println!("📋 Note: Services are accessible via Traefik Ingress Controller");
+    println!("📋 Use 'k8s-obs setup-ingress' to configure ingress access");
     println!();
     
     let services = vec![
-        ("argocd-server", "argocd", "ArgoCD UI", "8080", "admin/admin"),
-        ("grafana", namespace, "Grafana", "3000", "admin/(see password command below)"),
-        ("prometheus-server", namespace, "Prometheus", "9090", "No authentication"),
-        ("clickhouse", namespace, "ClickHouse", "8123", "default/(see password command below)"),
-        ("jaeger-query", namespace, "Jaeger UI", "16686", "No authentication"),
+        ("traefik", "traefik", "Traefik Dashboard", "/traefik", "admin/admin"),
+        ("argocd-server", "argocd", "ArgoCD UI", "/argocd", "admin/admin"),
+        ("grafana", namespace, "Grafana", "/grafana", "admin/admin123"),
+        ("prometheus-server", namespace, "Prometheus", "/prometheus", "No authentication"),
+        ("clickhouse", namespace, "ClickHouse", "/clickhouse", "default/clickhouse123"),
+        ("jaeger-query", namespace, "Jaeger UI", "/jaeger", "No authentication"),
     ];
     
-    for (service, ns, name, port, credentials) in services {
+    for (_service, _ns, name, path, credentials) in services {
         println!("{}:", name);
-        println!("  🌐 URL: http://localhost:{}", port);
+        println!("  🌐 URL: http://localhost:30080{}", path);
         println!("  🔐 Credentials: {}", credentials);
-        
-        // Show password commands for services that need them
-        match name {
-            "Grafana" => {
-                println!("  📋 Get Grafana password:");
-                println!("     kubectl get secret -n {} grafana-admin -o jsonpath='{{.data.GF_SECURITY_ADMIN_PASSWORD}}' | base64 -d", namespace);
-            }
-            "ClickHouse" => {
-                println!("  📋 Get ClickHouse password:");
-                println!("     kubectl get secret -n {} clickhouse -o jsonpath='{{.data.admin-password}}' | base64 -d", namespace);
-            }
-            _ => {}
-        }
         println!();
     }
     
     println!("{}", "=".repeat(40));
-    println!("🚀 To start port-forwarding, run: k8s-obs port-forward");
+    println!("🚀 To setup ingress access, run: k8s-obs setup-ingress");
     println!("📊 To check service status, run: k8s-obs status");
+    println!("🔧 To check ingress status, run: kubectl get ingress -n {}", namespace);
     
     Ok(())
 }
@@ -516,7 +657,7 @@ fn show_help() {
     println!("  deploy-sample-apps - Deploy sample applications for testing");
     println!("  status           - Show status of all components");
     println!("  logs             - Show logs for key components");
-    println!("  port-forward     - Set up port forwarding for local access");
+    println!("  setup-ingress    - Set up Traefik ingress for local access");
     println!("  get-urls         - Get service URLs");
     println!("  cleanup          - Remove sample apps and ArgoCD apps");
     println!("  clean-all        - Remove everything including Kind cluster");
@@ -530,12 +671,13 @@ fn show_help() {
     println!("  🗄️ ClickHouse - Data storage");
     println!("  📡 OpenTelemetry Collector - Data collection");
     println!();
-    println!("Access URLs (after port-forward):");
-    println!("  ArgoCD UI: http://localhost:8080 (admin/admin)");
-    println!("  Grafana: http://localhost:3000 (admin/$(kubectl get secret -n observability grafana-admin -o jsonpath='{{.data.GF_SECURITY_ADMIN_PASSWORD}}' | base64 -d))");
-    println!("  Prometheus: http://localhost:9090");
-    println!("  Jaeger UI: http://localhost:16686");
-    println!("  ClickHouse: http://localhost:8123");
+    println!("Access URLs (after ingress setup):");
+println!("  Traefik Dashboard: http://localhost:30080/traefik (admin/admin)");
+println!("  ArgoCD UI: http://localhost:30080/argocd (admin/admin)");
+println!("  Grafana: http://localhost:30080/grafana (admin/admin123)");
+println!("  Prometheus: http://localhost:30080/prometheus");
+println!("  Jaeger UI: http://localhost:30080/jaeger");
+println!("  ClickHouse: http://localhost:30080/clickhouse");
     println!();
     println!("Usage: k8s-obs <command> [options]");
     println!("Example: k8s-obs deploy-stack");

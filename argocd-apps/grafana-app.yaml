@@ -3,8 +3,6 @@ kind: Application
 metadata:
   name: grafana
   namespace: argocd
-  annotations:
-    argocd.argoproj.io/sync-wave: "1"
   labels:
     app.kubernetes.io/part-of: observability-stack
 spec:
@@ -12,12 +10,11 @@ spec:
     namespace: observability
     server: https://kubernetes.default.svc
   source:
-    repoURL: https://charts.bitnami.com/bitnami
-    targetRevision: 12.0.8
+    repoURL: https://grafana.github.io/helm-charts
+    targetRevision: 7.3.11   # Use latest stable or your preferred version
     chart: grafana
     helm:
       values: |
-        # Grafana Configuration
         adminPassword: admin123
         service:
           type: ClusterIP
@@ -31,8 +28,7 @@ spec:
           requests:
             memory: 512Mi
             cpu: 500m
-        
-        # Data Sources Configuration
+
         datasources:
           datasources.yaml:
             apiVersion: 1
@@ -43,8 +39,11 @@ spec:
                 access: proxy
                 isDefault: true
                 editable: true
-        
-        # Dashboards Configuration
+                jsonData:
+                  timeInterval: 15s
+                  queryTimeout: 60s
+                  httpMethod: POST
+
         dashboards:
           default:
             kubernetes-cluster:
@@ -59,8 +58,7 @@ spec:
               gnetId: 3662
               revision: 1
               datasource: Prometheus
-        
-        # Dashboard Providers
+
         dashboardProviders:
           dashboardproviders.yaml:
             apiVersion: 1
@@ -74,8 +72,7 @@ spec:
                 allowUiUpdates: true
                 options:
                   path: /var/lib/grafana/dashboards/default
-        
-        # Additional Configuration
+
         grafana.ini:
           server:
             root_url: http://localhost:3000

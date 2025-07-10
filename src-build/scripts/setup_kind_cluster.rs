@@ -188,7 +188,18 @@ impl KindClusterSetup {
                     kubeadm_config_patches: Some(vec![
                         "kind: InitConfiguration\nnodeRegistration:\n  kubeletExtraArgs:\n    node-labels: \"ingress-ready=true\"".to_string()
                     ]),
-                    extra_port_mappings: None,
+                    extra_port_mappings: Some(vec![
+                        PortMapping {
+                            container_port: 30080,
+                            host_port: 30080,
+                            protocol: "TCP".to_string(),
+                        },
+                        PortMapping {
+                            container_port: 30443,
+                            host_port: 30443,
+                            protocol: "TCP".to_string(),
+                        },
+                    ]),
                 },
                 KindNode {
                     role: "worker".to_string(),

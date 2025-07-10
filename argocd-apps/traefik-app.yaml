@@ -1,0 +1,104 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: traefik
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+    app.kubernetes.io/part-of: observability-stack
+spec:
+  destination:
+    namespace: traefik
+    server: https://kubernetes.default.svc
+  source:
+    repoURL: https://traefik.github.io/charts
+    targetRevision: 24.0.0
+    chart: traefik
+    helm:
+      values: |
+        # Traefik Configuration
+        deployment:
+          replicas: 1
+          resources:
+            limits:
+              memory: 256Mi
+              cpu: 250m
+            requests:
+              memory: 128Mi
+              cpu: 100m
+        
+        # Service Configuration
+        service:
+          type: NodePort
+          nodePorts:
+            web: 30080
+            websecure: 30443
+        
+        # Dashboard Configuration
+        dashboard:
+          enabled: true
+          auth:
+            basic:
+              admin: $2y$10$H6dTQl4m6ZSBK1lsKx5xkuB9H6dTQl4m6ZSBK1lsKx5xkuB9H6dTQ # admin/admin
+          service:
+            type: ClusterIP
+            port: 9000
+        
+        # Metrics Configuration
+        metrics:
+          prometheus:
+            enabled: true
+            addEntryPointsLabels: true
+            addServicesLabels: true
+            entryPoint: metrics
+        
+        # Logging Configuration
+        logs:
+          general:
+            level: INFO
+          access:
+            enabled: true
+        
+        # IngressRoute CRD (v2)
+        ingressRoute:
+          dashboard:
+            enabled: true
+        
+        # Ingress (v1) support
+        ingress:
+          enabled: true
+          isDefaultClass: true
+        
+        # Additional Arguments
+        additionalArguments:
+          - "--api.dashboard=true"
+          - "--api.insecure=true"
+          - "--providers.kubernetesingress.ingressclass=traefik"
+          - "--entrypoints.web.address=:80"
+          - "--entrypoints.websecure.address=:443"
+          - "--entrypoints.metrics.address=:8082"
+        
+        # Ports Configuration
+        ports:
+          web:
+            port: 80
+            expose: true
+            exposedPort: 30080
+            protocol: TCP
+          websecure:
+            port: 443
+            expose: true
+            exposedPort: 30443
+            protocol: TCP
+          metrics:
+            port: 8082
+            expose: false
+            protocol: TCP
+  project: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true 
