@@ -36,6 +36,8 @@ enum Commands {
     Logs,
     /// Setup ingress access for local access
     SetupIngress,
+    /// Disable Docker Desktop NGINX ingress controller
+    DisableDockerNginx,
     /// Get service URLs
     GetUrls,
     /// Cleanup applications
@@ -60,6 +62,7 @@ fn main() -> Result<()> {
         Commands::Status => show_status(&cli.namespace)?,
         Commands::Logs => show_logs(&cli.namespace)?,
         Commands::SetupIngress => setup_ingress(&cli.namespace)?,
+        Commands::DisableDockerNginx => disable_docker_nginx()?,
         Commands::GetUrls => get_urls(&cli.namespace)?,
         Commands::Cleanup => cleanup(&cli.namespace)?,
         Commands::CleanAll => clean_all(&cli.namespace)?,
@@ -254,6 +257,35 @@ fn deploy_stack(namespace: &str) -> Result<()> {
     
     println!("Deploying Grafana, Prometheus, Jaeger, and ClickHouse applications...");
     run_command("kubectl apply -k argocd-apps/", "Applying ArgoCD applications for observability stack")?;
+    
+    // Wait for Traefik to be ready before deploying ingress resources
+    print_status("⏳ Waiting for Traefik to be ready...", "yellow");
+    let mut attempts = 0;
+    while attempts < 60 { // Wait up to 5 minutes
+        thread::sleep(Duration::from_secs(5));
+        let traefik_check = Command::new("kubectl")
+            .args(&["get", "pods", "-n", "traefik", "--no-headers"])
+            .output();
+        
+        if let Ok(output) = traefik_check {
+            if output.status.success() {
+                let pods = String::from_utf8_lossy(&output.stdout);
+                if pods.contains("Running") {
+                    print_status("✅ Traefik is ready", "green");
+                    break;
+                }
+            }
+        }
+        attempts += 1;
+        if attempts % 12 == 0 { // Show progress every minute
+            print_status(&format!("⏳ Still waiting for Traefik... ({}s)", attempts * 5), "yellow");
+        }
+    }
+    
+    // Deploy ingress resources after Traefik is ready
+    print_status("🔗 Deploying ingress configuration...", "cyan");
+    run_command("kubectl apply -f argocd-apps/observability-ingress.yaml", "Applying ingress configuration")?;
+    
     print_status("✅ Observability stack deployment complete", "green");
     Ok(())
 }
@@ -544,6 +576,155 @@ fn setup_hosts_file() -> Result<()> {
     Ok(())
 }
 
+fn disable_docker_nginx() -> Result<()> {
+    print_status("🔧 Disabling Docker Desktop NGINX Ingress Controller...", "yellow");
+    println!();
+    
+    print_status("🔍 Checking for Docker Desktop NGINX ingress controller...", "cyan");
+    
+    // Check if we're using Docker Desktop context
+    let context_check = Command::new("kubectl")
+        .args(&["config", "current-context"])
+        .output();
+    
+    let is_docker_desktop = match context_check {
+        Ok(output) => {
+            let context = String::from_utf8_lossy(&output.stdout);
+            let context_trimmed = context.trim();
+            context_trimmed.contains("docker-desktop") || context_trimmed.contains("docker-for-desktop")
+        }
+        Err(_) => false,
+    };
+    
+    if !is_docker_desktop {
+        print_status("ℹ️  Not using Docker Desktop context - this command is for Docker Desktop users", "yellow");
+        print_status("📋 If you're using Kind cluster, NGINX conflicts are unlikely", "cyan");
+        return Ok(());
+    }
+    
+    print_status("📋 Docker Desktop context detected", "cyan");
+    println!();
+    
+    // Check for NGINX ingress controller resources
+    let nginx_resources = vec![
+        ("kubectl get namespace ingress-nginx", "ingress-nginx namespace"),
+        ("kubectl get deployment -n ingress-nginx", "NGINX deployment"),
+        ("kubectl get service -n ingress-nginx", "NGINX services"),
+        ("kubectl get ingressclass nginx", "NGINX ingress class"),
+    ];
+    
+    let mut found_nginx = false;
+    
+    for (cmd, description) in nginx_resources {
+        print_status(&format!("🔍 Checking for {}...", description), "cyan");
+        
+        let output = Command::new("cmd")
+            .args(&["/C", cmd])
+            .output();
+        
+        match output {
+            Ok(output) => {
+                if output.status.success() {
+                    let result = String::from_utf8_lossy(&output.stdout);
+                    if !result.contains("No resources found") && !result.is_empty() {
+                        print_status(&format!("⚠️  Found {}: {}", description, result.lines().next().unwrap_or("")), "yellow");
+                        found_nginx = true;
+                    } else {
+                        print_status(&format!("✅ No {} found", description), "green");
+                    }
+                } else {
+                    print_status(&format!("✅ No {} found (not installed)", description), "green");
+                }
+            }
+            Err(_) => {
+                print_status(&format!("✅ No {} found (not accessible)", description), "green");
+            }
+        }
+    }
+    
+    if !found_nginx {
+        print_status("✅ No NGINX ingress controller found - no action needed", "green");
+        return Ok(());
+    }
+    
+    println!();
+    print_status("⚠️  NGINX ingress controller found! This may conflict with Traefik.", "yellow");
+    println!();
+    print_status("🔧 Options to resolve:", "cyan");
+    println!("   1. Disable NGINX in Docker Desktop settings");
+    println!("   2. Remove NGINX resources manually");
+    println!("   3. Use Kind cluster instead (recommended)");
+    println!();
+    
+    // Option 1: Docker Desktop Settings
+    print_status("📋 Option 1: Disable in Docker Desktop Settings", "cyan");
+    println!("   1. Open Docker Desktop");
+    println!("   2. Go to Settings → Kubernetes");
+    println!("   3. Uncheck 'Enable Kubernetes'");
+    println!("   4. Click 'Apply & Restart'");
+    println!("   5. Re-enable Kubernetes (this will start fresh)");
+    println!();
+    
+    // Option 2: Manual removal
+    print_status("📋 Option 2: Manual Removal (Advanced)", "cyan");
+    println!("   Run these commands to remove NGINX resources:");
+    println!("   kubectl delete namespace ingress-nginx --ignore-not-found=true");
+    println!("   kubectl delete ingressclass nginx --ignore-not-found=true");
+    println!("   kubectl delete clusterrolebinding nginx-ingress --ignore-not-found=true");
+    println!("   kubectl delete clusterrole nginx-ingress --ignore-not-found=true");
+    println!();
+    
+    // Option 3: Use Kind cluster
+    print_status("📋 Option 3: Use Kind Cluster (Recommended)", "cyan");
+    println!("   Kind cluster provides a clean environment without Docker Desktop conflicts:");
+    println!("   k8s-obs setup-cluster");
+    println!();
+    
+    print_status("🎯 Recommended Action:", "green");
+    println!("   Use 'k8s-obs setup-cluster' to create a Kind cluster");
+    println!("   This avoids all Docker Desktop conflicts and provides a clean environment");
+    println!();
+    
+    // Check if user wants to proceed with manual removal
+    print_status("❓ Do you want to attempt manual removal of NGINX resources? (y/N)", "yellow");
+    println!("   This will remove the ingress-nginx namespace and related resources.");
+    println!("   Type 'y' to proceed, or any other key to skip:");
+    
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input)?;
+    
+    if input.trim().to_lowercase() == "y" {
+        print_status("🗑️  Removing NGINX ingress controller resources...", "yellow");
+        
+        let removal_commands = vec![
+            "kubectl delete namespace ingress-nginx --ignore-not-found=true",
+            "kubectl delete ingressclass nginx --ignore-not-found=true",
+            "kubectl delete clusterrolebinding nginx-ingress --ignore-not-found=true",
+            "kubectl delete clusterrole nginx-ingress --ignore-not-found=true",
+            "kubectl delete validatingwebhookconfiguration nginx-ingress-admission --ignore-not-found=true",
+        ];
+        
+        for cmd in removal_commands {
+            run_command(cmd, &format!("Removing: {}", cmd))?;
+        }
+        
+        print_status("✅ NGINX ingress controller resources removed", "green");
+        println!();
+        print_status("📋 Next steps:", "cyan");
+        println!("   1. Restart Docker Desktop");
+        println!("   2. Run 'k8s-obs deploy-stack' to deploy Traefik");
+        println!("   3. Run 'k8s-obs setup-ingress' to configure access");
+    } else {
+        print_status("⏭️  Skipping manual removal", "yellow");
+        println!();
+        print_status("📋 To resolve conflicts:", "cyan");
+        println!("   - Use Kind cluster: k8s-obs setup-cluster");
+        println!("   - Or disable Kubernetes in Docker Desktop settings");
+    }
+    
+    Ok(())
+}
+
 fn get_urls(namespace: &str) -> Result<()> {
     print_status("🌐 Service URLs & Access Information", "cyan");
     println!("{}", "=".repeat(40));
@@ -616,13 +797,6 @@ fn clean_all(namespace: &str) -> Result<()> {
         std::fs::remove_dir_all("tmp_crds")?;
     }
     
-    // Clean binaries
-    if std::path::Path::new("bin").exists() {
-        print_status("🧹 Cleaning binaries...", "yellow");
-        std::fs::remove_dir_all("bin")?;
-        print_status("✅ Binaries cleaned", "green");
-    }
-    
     print_status("✅ Complete cleanup finished", "green");
     Ok(())
 }
@@ -664,6 +838,7 @@ fn show_help() {
     println!("  status           - Show status of all components");
     println!("  logs             - Show logs for key components");
     println!("  setup-ingress    - Set up Traefik ingress for local access");
+    println!("  disable-docker-nginx - Disable Docker Desktop NGINX ingress controller");
     println!("  get-urls         - Get service URLs");
     println!("  cleanup          - Remove sample apps and ArgoCD apps");
     println!("  clean-all        - Remove everything including Kind cluster");

@@ -314,6 +314,58 @@ The project uses Traefik Ingress Controller for external access:
 
 ## 🔍 Troubleshooting
 
+### Docker Desktop NGINX Conflicts
+
+If you're using Docker Desktop with Kubernetes enabled, you may encounter conflicts between Docker Desktop's built-in NGINX ingress controller and our Traefik setup. This can cause 404 errors or routing issues.
+
+#### Quick Fix
+
+Use the built-in command to detect and resolve NGINX conflicts:
+
+```powershell
+# Check for and disable Docker Desktop NGINX
+.\bin\k8s-obs.exe disable-docker-nginx
+```
+
+#### Manual Resolution Options
+
+**Option 1: Use Kind Cluster (Recommended)**
+```powershell
+# Create a clean Kind cluster (no Docker Desktop conflicts)
+.\bin\k8s-obs.exe setup-cluster
+```
+
+**Option 2: Disable Kubernetes in Docker Desktop**
+1. Open Docker Desktop
+2. Go to Settings → Kubernetes
+3. Uncheck "Enable Kubernetes"
+4. Click "Apply & Restart"
+5. Re-enable Kubernetes (this starts fresh)
+
+**Option 3: Remove NGINX Resources Manually**
+```bash
+kubectl delete namespace ingress-nginx --ignore-not-found=true
+kubectl delete ingressclass nginx --ignore-not-found=true
+kubectl delete clusterrolebinding nginx-ingress --ignore-not-found=true
+kubectl delete clusterrole nginx-ingress --ignore-not-found=true
+```
+
+#### Why This Happens
+
+Docker Desktop comes with NGINX ingress controller pre-installed, which:
+- Listens on port 80/443 by default
+- Can conflict with Traefik's port 30080
+- May intercept traffic meant for Traefik
+- Causes 404 errors when accessing services
+
+#### Best Practice
+
+Use Kind cluster instead of Docker Desktop Kubernetes:
+- Clean environment without conflicts
+- Better isolation for development
+- More production-like setup
+- Full control over ingress controllers
+
 ### Common Issues
 
 1. **Ingress Access Not Working**

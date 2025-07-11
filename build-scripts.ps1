@@ -24,13 +24,22 @@ param(
     [switch]$Clean
 )
 
+# Export Helm path for winget installation
+$helmPath = "C:\Users\nikhil\AppData\Local\Microsoft\WinGet\Packages\Helm.Helm_Microsoft.Winget.Source_8wekyb3d8bbwe\windows-amd64"
+if (Test-Path $helmPath) {
+    $env:PATH = "$helmPath;$env:PATH"
+    Write-Host "🔧 Added Helm path to PATH: $helmPath" -ForegroundColor Cyan
+} else {
+    Write-Host "⚠️ Helm path not found: $helmPath" -ForegroundColor Yellow
+}
+
 # Colors for output
 $Green = "Green"
 $Yellow = "Yellow"
 $Red = "Red"
 $Cyan = "Cyan"
 
-function Write-Status {
+function Write-Status {kubectl get no
     param(
         [string]$Message,
         [string]$Color = "White"

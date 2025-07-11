@@ -34,6 +34,8 @@ spec:
           nodePorts:
             web: 30080
             websecure: 30443
+          annotations:
+            service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "http"
         
         # Dashboard Configuration
         dashboard:

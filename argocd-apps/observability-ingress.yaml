@@ -4,26 +4,43 @@ metadata:
   name: observability-ingress
   namespace: observability
   annotations:
-    kubernetes.io/ingress.class: "traefik"
     traefik.ingress.kubernetes.io/router.entrypoints: "web"
     traefik.ingress.kubernetes.io/router.tls: "false"
-    traefik.ingress.kubernetes.io/middlewares.stripprefix.stripprefix.prefixes: "/grafana,/prometheus,/jaeger,/clickhouse,/argocd,/traefik"
+    traefik.ingress.kubernetes.io/middlewares: prometheus-redirect@kubernetescrd,root-redirect@kubernetescrd,stripprefix@kubernetescrd
   labels:
     app.kubernetes.io/part-of: observability-stack
     app.kubernetes.io/managed-by: argocd
 spec:
+  ingressClassName: traefik
   rules:
   - host: localhost
     http:
       paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: grafana
+            port:
+              number: 80
       - path: /grafana
         pathType: Prefix
         backend:
           service:
             name: grafana
             port:
-              number: 3000
+              number: 80
       - path: /prometheus
+        pathType: Prefix
+        backend:
+          service:
+            name: prometheus-server
+            port:
+              number: 80
+        # This path will use the prometheus-redirect middleware
+        # which will redirect /prometheus to /prometheus/graph
+        # and the stripprefix middleware for /prometheus/*
+      - path: /prometheus/graph
         pathType: Prefix
         backend:
           service:
@@ -44,6 +61,60 @@ spec:
             name: clickhouse
             port:
               number: 8123
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: prometheus-redirect
+  namespace: observability
+spec:
+  redirectRegex:
+    regex: ^/prometheus/?$
+    replacement: /prometheus/graph
+    permanent: true
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: root-redirect
+  namespace: observability
+spec:
+  redirectRegex:
+    regex: ^/$
+    replacement: /grafana
+    permanent: true
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: stripprefix
+  namespace: observability
+spec:
+  stripPrefix:
+    prefixes:
+      - /grafana
+      - /prometheus
+      - /jaeger
+      - /clickhouse
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd-ingress
+  namespace: argocd
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: "web"
+    traefik.ingress.kubernetes.io/router.tls: "false"
+    traefik.ingress.kubernetes.io/middlewares: argocd-stripprefix@kubernetescrd
+  labels:
+    app.kubernetes.io/part-of: observability-stack
+    app.kubernetes.io/managed-by: argocd
+spec:
+  ingressClassName: traefik
+  rules:
+  - host: localhost
+    http:
+      paths:
       - path: /argocd
         pathType: Prefix
         backend:
@@ -51,13 +122,52 @@ spec:
             name: argocd-server
             port:
               number: 443
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: argocd-stripprefix
+  namespace: argocd
+spec:
+  stripPrefix:
+    prefixes:
+      - /argocd
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: traefik-ingress
+  namespace: traefik
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: "web"
+    traefik.ingress.kubernetes.io/router.tls: "false"
+    traefik.ingress.kubernetes.io/middlewares: traefik-stripprefix@kubernetescrd
+  labels:
+    app.kubernetes.io/part-of: observability-stack
+    app.kubernetes.io/managed-by: argocd
+spec:
+  ingressClassName: traefik
+  rules:
+  - host: localhost
+    http:
+      paths:
       - path: /traefik
         pathType: Prefix
         backend:
           service:
             name: traefik
             port:
-              number: 9000
+              number: 30080
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: traefik-stripprefix
+  namespace: traefik
+spec:
+  stripPrefix:
+    prefixes:
+      - /traefik
 ---
 apiVersion: v1
 kind: ConfigMap

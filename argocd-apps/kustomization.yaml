@@ -12,7 +12,6 @@ resources:
   - jaeger-app.yaml
   - clickhouse-app.yaml
   - opentelemetry-collector-app.yaml
-  - observability-ingress.yaml
 
 labels:
   - pairs:
