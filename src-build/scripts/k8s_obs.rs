@@ -244,8 +244,14 @@ fn deploy_argocd() -> Result<()> {
     Ok(())
 }
 
-fn deploy_stack(_namespace: &str) -> Result<()> {
+fn deploy_stack(namespace: &str) -> Result<()> {
     print_status("🚀 Deploying observability stack...", "yellow");
+    
+    // Create namespace first
+    print_status("📋 Creating observability namespace...", "cyan");
+    let namespace_cmd = format!("kubectl create namespace {} --dry-run=client -o yaml | kubectl apply -f -", namespace);
+    run_command(&namespace_cmd, "Creating observability namespace")?;
+    
     println!("Deploying Grafana, Prometheus, Jaeger, and ClickHouse applications...");
     run_command("kubectl apply -k argocd-apps/", "Applying ArgoCD applications for observability stack")?;
     print_status("✅ Observability stack deployment complete", "green");
