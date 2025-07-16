@@ -39,7 +39,7 @@ $Yellow = "Yellow"
 $Red = "Red"
 $Cyan = "Cyan"
 
-function Write-Status {kubectl get no
+function Write-Status {
     param(
         [string]$Message,
         [string]$Color = "White"

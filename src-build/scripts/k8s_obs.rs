@@ -22,8 +22,6 @@ struct Cli {
 enum Commands {
     /// Quick start - setup everything from scratch
     QuickStart,
-    /// Setup Kind cluster
-    SetupCluster,
     /// Deploy ArgoCD
     DeployArgoCD,
     /// Deploy observability stack
@@ -55,7 +53,6 @@ fn main() -> Result<()> {
     
     match cli.command {
         Commands::QuickStart => quick_start(&cli.namespace)?,
-        Commands::SetupCluster => setup_cluster()?,
         Commands::DeployArgoCD => deploy_argocd()?,
         Commands::DeployStack => deploy_stack(&cli.namespace)?,
         Commands::DeploySampleApps => deploy_sample_apps(&cli.namespace)?,
@@ -160,50 +157,7 @@ fn check_binaries() -> Result<()> {
 
 
 
-fn setup_cluster() -> Result<()> {
-    check_binaries()?;
-    print_status("🔧 Setting up Kind cluster...", "yellow");
-    
-    // Check if cluster already exists
-    let cluster_check = Command::new("kind")
-        .args(&["get", "clusters"])
-        .output();
-    
-    match cluster_check {
-        Ok(output) => {
-            let clusters = String::from_utf8_lossy(&output.stdout);
-            if clusters.contains("observability-cluster") {
-                print_status("ℹ️  Kind cluster 'observability-cluster' already exists", "yellow");
-                print_status("📋 Checking cluster status...", "cyan");
-                
-                let status_check = Command::new("kubectl")
-                    .args(&["cluster-info"])
-                    .output();
-                
-                match status_check {
-                    Ok(status_output) => {
-                        if status_output.status.success() {
-                            print_status("✅ Existing cluster is healthy and ready", "green");
-                            return Ok(());
-                        } else {
-                            print_status("⚠️  Existing cluster may have issues", "yellow");
-                        }
-                    }
-                    Err(_) => {
-                        print_status("⚠️  Cannot connect to existing cluster", "yellow");
-                    }
-                }
-            }
-        }
-        Err(_) => {
-            print_status("⚠️  Cannot check existing clusters", "yellow");
-        }
-    }
-    
-    run_command("bin\\setup_kind_cluster.exe", "Creating and configuring Kind cluster")?;
-    print_status("✅ Kind cluster setup complete", "green");
-    Ok(())
-}
+
 
 fn deploy_argocd() -> Result<()> {
     check_binaries()?;
@@ -677,11 +631,11 @@ fn disable_docker_nginx() -> Result<()> {
     // Option 3: Use Kind cluster
     print_status("📋 Option 3: Use Kind Cluster (Recommended)", "cyan");
     println!("   Kind cluster provides a clean environment without Docker Desktop conflicts:");
-    println!("   k8s-obs setup-cluster");
+    println!("   Use Docker Desktop's built-in Kind cluster or create one manually");
     println!();
     
     print_status("🎯 Recommended Action:", "green");
-    println!("   Use 'k8s-obs setup-cluster' to create a Kind cluster");
+    println!("   Use Docker Desktop's built-in Kind cluster or create one manually");
     println!("   This avoids all Docker Desktop conflicts and provides a clean environment");
     println!();
     
@@ -783,7 +737,6 @@ fn clean_all(namespace: &str) -> Result<()> {
     cleanup(namespace)?;
     
     let cleanup_commands = vec![
-        ("kind delete cluster --name observability-cluster", "Deleting Kind cluster"),
         ("docker system prune -f", "Cleaning Docker system"),
     ];
     
@@ -798,6 +751,8 @@ fn clean_all(namespace: &str) -> Result<()> {
     }
     
     print_status("✅ Complete cleanup finished", "green");
+    print_status("📋 Note: Docker Desktop Kind cluster was not deleted", "cyan");
+    print_status("📋 To delete the cluster, use Docker Desktop settings or 'kind delete cluster' manually", "cyan");
     Ok(())
 }
 
@@ -806,7 +761,6 @@ fn dev_setup() -> Result<()> {
     
     check_prerequisites()?;
     check_binaries()?;
-    setup_cluster()?;
     deploy_argocd()?;
     
     print_status("🔧 Development environment ready", "green");
@@ -816,7 +770,6 @@ fn dev_setup() -> Result<()> {
 fn quick_start(namespace: &str) -> Result<()> {
     print_status("🎉 Starting complete setup...", "yellow");
     
-    setup_cluster()?;
     deploy_argocd()?;
     deploy_stack(namespace)?;
     deploy_sample_apps(namespace)?;
@@ -831,7 +784,6 @@ fn show_help() {
     println!();
     println!("Available commands:");
     println!("  quick-start       - Complete setup from scratch");
-    println!("  setup-cluster     - Create and configure Kind cluster");
     println!("  deploy-argocd     - Deploy ArgoCD to the cluster");
     println!("  deploy-stack      - Deploy observability stack via ArgoCD");
     println!("  deploy-sample-apps - Deploy sample applications for testing");
@@ -841,7 +793,7 @@ fn show_help() {
     println!("  disable-docker-nginx - Disable Docker Desktop NGINX ingress controller");
     println!("  get-urls         - Get service URLs");
     println!("  cleanup          - Remove sample apps and ArgoCD apps");
-    println!("  clean-all        - Remove everything including Kind cluster");
+    println!("  clean-all        - Remove applications (Docker Desktop cluster preserved)");
     println!("  dev-setup        - Development environment setup");
     println!("  help             - Show this help message");
     println!();

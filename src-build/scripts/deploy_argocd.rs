@@ -58,41 +58,56 @@ impl ArgoCDDeployer {
     }
 
     fn ensure_kind_context(&self) -> Result<()> {
-        self.print_status("🔧 Ensuring correct Kind context...", "yellow");
+        self.print_status("🔧 Ensuring correct Kubernetes context...", "yellow");
         
-        // First, check if the cluster exists
-        match self.run_command("kind get clusters", false) {
-            Ok(output) => {
-                let clusters = String::from_utf8_lossy(&output.stdout);
-                if !clusters.contains("observability-cluster") {
-                    anyhow::bail!("Kind cluster 'observability-cluster' not found. Please run setup_kind_cluster.exe first.");
-                }
-            }
-            Err(_) => {
-                anyhow::bail!("Kind is not available or cluster not found. Please run setup_kind_cluster.exe first.");
-            }
-        }
-        
-        // Export kubeconfig to default location and fix the server endpoint
-        self.run_command(&format!("kind export kubeconfig --name observability-cluster"), false)?;
-        self.run_command("kubectl config set-cluster kind-observability-cluster --server=https://127.0.0.1:6443", false)?;
-        
-        // Test the connection
+        // Check if we can connect to any Kubernetes cluster
         match self.run_command("kubectl cluster-info", false) {
             Ok(_) => {
-                self.print_status("✅ Kind context set correctly", "green");
+                self.print_status("✅ Kubernetes cluster is accessible", "green");
+                
+                // Check if we're using Docker Desktop context
+                match self.run_command("kubectl config current-context", false) {
+                    Ok(output) => {
+                        let context_str = String::from_utf8_lossy(&output.stdout);
+                        let context = context_str.trim();
+                        if context.contains("docker-desktop") {
+                            self.print_status("✅ Using Docker Desktop Kubernetes context", "green");
+                        } else {
+                            self.print_status(&format!("ℹ️  Using Kubernetes context: {}", context), "cyan");
+                        }
+                    }
+                    Err(_) => {
+                        self.print_status("ℹ️  Using default Kubernetes context", "cyan");
+                    }
+                }
+                
                 Ok(())
             }
             Err(_) => {
-                // Try one more time with explicit context
-                match self.run_command("kubectl cluster-info --context kind-observability-cluster", false) {
-                    Ok(_) => {
-                        self.print_status("✅ Kind context set correctly", "green");
-                        Ok(())
+                // Try to check if Kind clusters exist as fallback
+                match self.run_command("kind get clusters", false) {
+                    Ok(output) => {
+                        let clusters = String::from_utf8_lossy(&output.stdout);
+                        if clusters.contains("observability-cluster") {
+                            self.print_status("ℹ️  Found Kind cluster 'observability-cluster', switching to it", "yellow");
+                            self.run_command("kind export kubeconfig --name observability-cluster", false)?;
+                            self.run_command("kubectl config set-cluster kind-observability-cluster --server=https://127.0.0.1:6443", false)?;
+                            
+                            match self.run_command("kubectl cluster-info", false) {
+                                Ok(_) => {
+                                    self.print_status("✅ Kind context set correctly", "green");
+                                    Ok(())
+                                }
+                                Err(_) => {
+                                    anyhow::bail!("Cannot connect to Kind cluster. Please ensure the cluster is running.");
+                                }
+                            }
+                        } else {
+                            anyhow::bail!("No accessible Kubernetes cluster found. Please ensure Docker Desktop Kubernetes is enabled or run setup_kind_cluster.exe first.");
+                        }
                     }
                     Err(_) => {
-                        self.print_status("❌ Failed to connect to cluster", "red");
-                        anyhow::bail!("Cannot connect to Kind cluster. Please ensure the cluster is running.");
+                        anyhow::bail!("No accessible Kubernetes cluster found. Please ensure Docker Desktop Kubernetes is enabled or run setup_kind_cluster.exe first.");
                     }
                 }
             }

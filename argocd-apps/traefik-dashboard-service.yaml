@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: traefik-dashboard
+  namespace: traefik
+  labels:
+    app.kubernetes.io/part-of: observability-stack
+    app.kubernetes.io/managed-by: argocd
+spec:
+  type: ClusterIP
+  ports:
+  - name: dashboard
+    port: 9000
+    targetPort: 9000
+    protocol: TCP
+  selector:
+    app.kubernetes.io/instance: traefik-traefik
+    app.kubernetes.io/name: traefik
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: traefik-dashboard-ingress
+  namespace: traefik
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: "web"
+    traefik.ingress.kubernetes.io/router.tls: "false"
+    traefik.ingress.kubernetes.io/middlewares: traefik-dashboard-rewrite@kubernetescrd
+  labels:
+    app.kubernetes.io/part-of: observability-stack
+    app.kubernetes.io/managed-by: argocd
+spec:
+  ingressClassName: traefik
+  rules:
+  - host: localhost
+    http:
+      paths:
+      - path: /traefik
+        pathType: Prefix
+        backend:
+          service:
+            name: traefik-dashboard
+            port:
+              number: 9000 
