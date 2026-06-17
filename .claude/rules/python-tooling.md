@@ -1,3 +1,8 @@
+---
+description: All Python tooling must use uv. Never use pip, pipx, or virtualenv.
+applies-to: python
+---
+
 # Rule: Python Tooling
 
 All Python tooling is managed with `uv`. Never use pip, pipx, or virtualenv.
