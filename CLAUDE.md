@@ -92,5 +92,9 @@ Skills in `.claude/skills/` (invoke via the Skill tool):
 | `stack-status` | Component health table across all namespaces |
 | `verify-otel` | End-to-end pillar check (metrics → Prometheus, traces → Jaeger, logs → ClickHouse) |
 | `deploy` | Guided deployment with pre-flight checks |
+| `helm` | Add repos, pull charts locally into `argocd-apps/charts/` |
+| `kind-cluster` | Start, stop, restart, or check status of the Kind cluster |
 
 Architecture and pipeline details: `.claude/specs/`
+
+Project rules: `.claude/rules/`

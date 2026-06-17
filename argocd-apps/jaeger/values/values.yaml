@@ -1,0 +1,46 @@
+storage:
+  type: memory
+  options:
+    memory:
+      maxTraces: 50000
+
+query:
+  service:
+    type: ClusterIP
+  resources:
+    limits:
+      memory: 512Mi
+      cpu: 500m
+    requests:
+      memory: 256Mi
+      cpu: 250m
+
+collector:
+  service:
+    type: ClusterIP
+  resources:
+    limits:
+      memory: 512Mi
+      cpu: 500m
+    requests:
+      memory: 256Mi
+      cpu: 250m
+
+agent:
+  enabled: false
+
+cassandra:
+  enabled: false
+
+elasticsearch:
+  enabled: false
+
+kafka:
+  enabled: false
+
+ingress:
+  enabled: false
+
+serviceAccount:
+  create: true
+  name: jaeger
