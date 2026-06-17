@@ -38,7 +38,7 @@ alertmanager:
     size: 5Gi
 
 kube-state-metrics:
-  enabled: false
+  enabled: true
 
 node-exporter:
-  enabled: false
+  enabled: true
