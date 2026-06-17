@@ -39,10 +39,3 @@ uv run ruff format .
 # Fix auto-fixable issues
 uv run ruff check --fix .
 ```
-
-## Rules
-
-- Never use `pip install`, `pipx install`, `python -m pip`, or `virtualenv`.
-- Never pass `--break-system-packages` to pip.
-- `uv tool install` is the equivalent of `pipx install` — installs CLI tools in isolated environments.
-- `uv run` executes scripts in the project's managed environment.
