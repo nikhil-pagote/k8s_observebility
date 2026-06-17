@@ -1,5 +1,11 @@
 mode: deployment
 
+image:
+  repository: otel/opentelemetry-collector-contrib
+
+command:
+  name: otelcol-contrib
+
 service:
   type: ClusterIP
 
