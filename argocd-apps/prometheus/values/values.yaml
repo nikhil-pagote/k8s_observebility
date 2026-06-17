@@ -1,6 +1,8 @@
 server:
   retention: 15d
   replicas: 1
+  prefixURL: /prometheus
+  baseURL: http://localhost:30080/prometheus
   resources:
     limits:
       memory: 2Gi
