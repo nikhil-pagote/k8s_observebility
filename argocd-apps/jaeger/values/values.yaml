@@ -5,6 +5,7 @@ storage:
       maxTraces: 50000
 
 query:
+  basePath: /jaeger
   service:
     type: ClusterIP
   resources:
