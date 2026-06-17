@@ -4,9 +4,10 @@ storage:
     memory:
       maxTraces: 50000
 
-jaeger:
-  args:
-    - --query.base-path=/jaeger
+userconfig:
+  extensions:
+    jaeger_query:
+      base_path: /jaeger
 
 query:
   service:
