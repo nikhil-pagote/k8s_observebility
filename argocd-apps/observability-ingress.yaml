@@ -22,7 +22,7 @@ spec:
           service:
             name: grafana
             port:
-              number: 3000
+              number: 80
       - path: /prometheus
         pathType: Prefix
         backend:
@@ -34,9 +34,9 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: jaeger-query
+            name: jaeger
             port:
-              number: 80
+              number: 16686
       - path: /argocd
         pathType: Prefix
         backend:
