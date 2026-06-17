@@ -19,25 +19,28 @@ helm repo add grafana https://grafana.github.io/helm-charts
 helm repo add jaegertracing https://jaegertracing.github.io/helm-charts
 helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
 helm repo add traefik https://traefik.github.io/charts
-helm repo add clickhouse https://charts.clickhouse.com/
+helm repo add clickstack https://clickhouse.github.io/ClickStack-helm-charts
 helm repo update
 helm repo list
 ```
 
 ## Pull
 
-Pull all charts at their pinned versions into each app's `chart/` directory:
+Pull all charts at their pinned versions into each app's `chart/` directory.
+
+> ClickHouse uses a two-phase deploy: operators CRDs first (sync-wave 0), then ClickStack (sync-wave 1).
 
 ```bash
-helm pull traefik/traefik                        --version 24.0.0  --untar --untardir argocd-apps/traefik/
-helm pull prometheus-community/prometheus         --version 25.27.0 --untar --untardir argocd-apps/prometheus/
-helm pull grafana/grafana                        --version 7.3.11  --untar --untardir argocd-apps/grafana/
-helm pull jaegertracing/jaeger                   --version 0.71.0  --untar --untardir argocd-apps/jaeger/
-helm pull clickhouse/clickhouse                  --version 6.2.9   --untar --untardir argocd-apps/clickhouse/
-helm pull open-telemetry/opentelemetry-collector --version 0.60.0  --untar --untardir argocd-apps/opentelemetry-collector/
+helm pull traefik/traefik                        --version 41.0.0   --untar --untardir argocd-apps/traefik/
+helm pull prometheus-community/prometheus         --version 29.12.0  --untar --untardir argocd-apps/prometheus/
+helm pull grafana/grafana                        --version 10.5.15  --untar --untardir argocd-apps/grafana/
+helm pull jaegertracing/jaeger                   --version 4.11.1   --untar --untardir argocd-apps/jaeger/
+helm pull clickstack/clickstack-operators        --version 1.0.0    --untar --untardir argocd-apps/clickhouse-operators/
+helm pull clickstack/clickstack                  --version 3.0.0    --untar --untardir argocd-apps/clickhouse/
+helm pull open-telemetry/opentelemetry-collector --version 0.158.2  --untar --untardir argocd-apps/opentelemetry-collector/
 
 echo "Charts pulled:"
-for app in traefik prometheus grafana jaeger clickhouse opentelemetry-collector; do
+for app in traefik prometheus grafana jaeger clickhouse-operators clickhouse opentelemetry-collector; do
   echo "  $app/chart: $(ls argocd-apps/$app/chart/ 2>/dev/null | head -1 || echo 'empty')"
 done
 ```
@@ -51,12 +54,13 @@ Refresh repo index and re-pull all charts (run when upgrading versions):
 ```bash
 helm repo update
 
-helm pull traefik/traefik                        --version 24.0.0  --untar --untardir argocd-apps/traefik/
-helm pull prometheus-community/prometheus         --version 25.27.0 --untar --untardir argocd-apps/prometheus/
-helm pull grafana/grafana                        --version 7.3.11  --untar --untardir argocd-apps/grafana/
-helm pull jaegertracing/jaeger                   --version 0.71.0  --untar --untardir argocd-apps/jaeger/
-helm pull clickhouse/clickhouse                  --version 6.2.9   --untar --untardir argocd-apps/clickhouse/
-helm pull open-telemetry/opentelemetry-collector --version 0.60.0  --untar --untardir argocd-apps/opentelemetry-collector/
+helm pull traefik/traefik                        --version 41.0.0   --untar --untardir argocd-apps/traefik/
+helm pull prometheus-community/prometheus         --version 29.12.0  --untar --untardir argocd-apps/prometheus/
+helm pull grafana/grafana                        --version 10.5.15  --untar --untardir argocd-apps/grafana/
+helm pull jaegertracing/jaeger                   --version 4.11.1   --untar --untardir argocd-apps/jaeger/
+helm pull clickstack/clickstack-operators        --version 1.0.0    --untar --untardir argocd-apps/clickhouse-operators/
+helm pull clickstack/clickstack                  --version 3.0.0    --untar --untardir argocd-apps/clickhouse/
+helm pull open-telemetry/opentelemetry-collector --version 0.158.2  --untar --untardir argocd-apps/opentelemetry-collector/
 
 echo "Charts updated."
 ```

@@ -1,23 +1,18 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: clickhouse
+  name: clickhouse-operators
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-wave: "0"
   labels:
     app.kubernetes.io/part-of: observability-stack
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:
     repoURL: https://github.com/nikhil-pagote/k8s_observebility.git
     targetRevision: HEAD
-    path: argocd-apps/clickhouse/chart
-    helm:
-      valueFiles:
-        - ../values/values.yaml
+    path: argocd-apps/clickhouse-operators/chart
   destination:
     server: https://kubernetes.default.svc
     namespace: observability
@@ -27,9 +22,3 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-    retry:
-      limit: 5
-      backoff:
-        duration: 5s
-        factor: 2
-        maxDuration: 3m

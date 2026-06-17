@@ -10,6 +10,7 @@ resources:
   - grafana/app.yaml
   - prometheus/app.yaml
   - jaeger/app.yaml
+  - clickhouse-operators/app.yaml
   - clickhouse/app.yaml
   - opentelemetry-collector/app.yaml
   - observability-ingress.yaml
