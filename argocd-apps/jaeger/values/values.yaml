@@ -1,38 +1,42 @@
-storage:
-  type: memory
-  options:
-    memory:
-      maxTraces: 50000
-
 userconfig:
+  service:
+    extensions: [jaeger_storage, jaeger_query, healthcheckv2]
+    pipelines:
+      traces:
+        receivers: [otlp]
+        exporters: [jaeger_storage_exporter]
   extensions:
+    healthcheckv2:
+      use_v2: true
+      http:
+        endpoint: 0.0.0.0:13133
     jaeger_query:
       base_path: /jaeger
+      storage:
+        traces: primary_store
+    jaeger_storage:
+      backends:
+        primary_store:
+          memory:
+            max_traces: 50000
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+  exporters:
+    jaeger_storage_exporter:
+      trace_storage: primary_store
 
-query:
-  service:
-    type: ClusterIP
-  resources:
-    limits:
-      memory: 512Mi
-      cpu: 500m
-    requests:
-      memory: 256Mi
-      cpu: 250m
-
-collector:
-  service:
-    type: ClusterIP
-  resources:
-    limits:
-      memory: 512Mi
-      cpu: 500m
-    requests:
-      memory: 256Mi
-      cpu: 250m
-
-agent:
-  enabled: false
+resources:
+  limits:
+    memory: 512Mi
+    cpu: 500m
+  requests:
+    memory: 256Mi
+    cpu: 250m
 
 cassandra:
   enabled: false
