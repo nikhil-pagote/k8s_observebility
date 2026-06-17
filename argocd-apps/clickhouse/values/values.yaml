@@ -1,7 +1,0 @@
-clickhouse:
-  cluster:
-    spec:
-      settings:
-        extraConfig:
-          background_schedule_pool_size: 16
-          max_thread_pool_size: 10000

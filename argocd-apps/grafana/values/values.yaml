@@ -29,6 +29,11 @@ datasources:
           timeInterval: 15s
           queryTimeout: 60s
           httpMethod: POST
+      - name: Loki
+        type: loki
+        url: http://loki.observability.svc.cluster.local:3100
+        access: proxy
+        editable: true
 
 dashboards:
   default:

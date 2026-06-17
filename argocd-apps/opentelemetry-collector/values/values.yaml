@@ -142,6 +142,10 @@ config:
       endpoint: "jaeger-collector.observability.svc.cluster.local:14250"
       tls:
         insecure: true
+    otlphttp/loki:
+      endpoint: "http://loki.observability.svc.cluster.local:3100/otlp"
+      tls:
+        insecure: true
 
   service:
     pipelines:
@@ -153,3 +157,7 @@ config:
         receivers: [otlp, prometheus]
         processors: [batch, memory_limiter, resource]
         exporters: [prometheus, debug]
+      logs:
+        receivers: [otlp]
+        processors: [batch, memory_limiter, resource]
+        exporters: [otlphttp/loki, debug]
