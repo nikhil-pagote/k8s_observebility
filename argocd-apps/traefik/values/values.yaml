@@ -1,66 +1,52 @@
 deployment:
   replicas: 1
-  resources:
-    limits:
-      memory: 256Mi
-      cpu: 250m
-    requests:
-      memory: 128Mi
-      cpu: 100m
+
+resources:
+  limits:
+    memory: 256Mi
+    cpu: 250m
+  requests:
+    memory: 128Mi
+    cpu: 100m
 
 service:
-  type: NodePort
-  nodePorts:
-    web: 30080
-    websecure: 30443
+  spec:
+    type: NodePort
 
-dashboard:
-  enabled: true
-  service:
-    type: ClusterIP
-    port: 9000
+ports:
+  web:
+    port: 8000
+    expose:
+      default: true
+    exposedPort: 80
+    nodePort: 30080
+    protocol: TCP
+  websecure:
+    port: 8443
+    expose:
+      default: true
+    exposedPort: 443
+    nodePort: 30443
+    protocol: TCP
+  metrics:
+    port: 8082
+    expose:
+      default: false
+    protocol: TCP
 
-metrics:
-  prometheus:
-    enabled: true
-    addEntryPointsLabels: true
-    addServicesLabels: true
-    entryPoint: metrics
-
-logs:
-  general:
-    level: INFO
-  access:
-    enabled: true
+api:
+  dashboard: true
+  insecure: true
 
 ingressRoute:
   dashboard:
     enabled: true
 
-ingress:
-  enabled: true
-  isDefaultClass: true
+metrics:
+  prometheus:
+    entryPoint: metrics
+    addEntryPointsLabels: true
+    addServicesLabels: true
 
 additionalArguments:
-  - "--api.dashboard=true"
-  - "--api.insecure=true"
   - "--providers.kubernetesingress.ingressclass=traefik"
-  - "--entrypoints.web.address=:80"
-  - "--entrypoints.websecure.address=:443"
-  - "--entrypoints.metrics.address=:8082"
-
-ports:
-  web:
-    port: 80
-    expose: true
-    exposedPort: 30080
-    protocol: TCP
-  websecure:
-    port: 443
-    expose: true
-    exposedPort: 30443
-    protocol: TCP
-  metrics:
-    port: 8082
-    expose: false
-    protocol: TCP
