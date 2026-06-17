@@ -1,6 +1,7 @@
 ---
-description: Start or stop the observability Kind cluster using Podman as the container runtime
-argument-hint: "<start|stop|status>"
+description: Start, stop, or restart the observability Kind cluster using Podman as the container runtime
+argument-hint: "<start|stop|restart|status>"
+disable-model-invocation: false
 allowed-tools:
   - Bash
 ---
@@ -30,6 +31,15 @@ kubectl get nodes
 ```bash
 source .envrc
 kind delete cluster --name observability-cluster
+```
+
+## Restart
+
+```bash
+source .envrc
+kind delete cluster --name observability-cluster
+kind create cluster --name observability-cluster --config kind-config.yaml
+kubectl get nodes
 ```
 
 ## Status
