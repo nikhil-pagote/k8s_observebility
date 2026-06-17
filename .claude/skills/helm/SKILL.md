@@ -45,7 +45,7 @@ for app in traefik prometheus grafana jaeger clickhouse-operators clickhouse ope
 done
 ```
 
-> `helm pull --untar` extracts into `<untardir>/<chart-name>/`. Rename to `chart/` if the extracted name differs.
+> `helm pull --untar` extracts into `<untardir>/<chart-name>/`. Always rename to `chart/` afterwards: `mv argocd-apps/<app>/<chart-name> argocd-apps/<app>/chart`.
 
 ## Update
 

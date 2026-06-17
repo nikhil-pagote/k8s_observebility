@@ -3,9 +3,12 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
+        exclude: ^argocd-apps/.*/chart/
       - id: end-of-file-fixer
+        exclude: ^argocd-apps/.*/chart/
       - id: check-yaml
         args: [--allow-multiple-documents]
+        exclude: ^argocd-apps/.*/chart/
       - id: check-merge-conflict
 
   - repo: https://github.com/adrienverge/yamllint
@@ -13,3 +16,4 @@ repos:
     hooks:
       - id: yamllint
         args: [-d, relaxed]
+        exclude: ^argocd-apps/.*/chart/
