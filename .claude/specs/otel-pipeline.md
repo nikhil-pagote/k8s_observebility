@@ -4,7 +4,7 @@
 
 ### Metrics + Traces Collector (Deployment)
 
-Receives OTLP from instrumented apps and fans out:
+Receives OTLP from instrumented apps and fans out to Prometheus and Jaeger only:
 
 ```
 Receivers:
@@ -17,9 +17,8 @@ Processors:
   batch: timeout=10s
 
 Exporters:
-  prometheus: 0.0.0.0:8889          → scraped by Prometheus ServiceMonitor
+  prometheus: 0.0.0.0:8889      → scraped by Prometheus ServiceMonitor
   otlp/jaeger: jaeger-collector:4317 → Jaeger trace storage
-  clickhouse: clickhouse:8123         → ClickHouse log/event storage
   debug: verbosity=basic
 
 Pipelines:
@@ -29,7 +28,7 @@ Pipelines:
 
 ### Log Collector (DaemonSet)
 
-Tails pod logs per node and ships to ClickHouse:
+One pod per node. Tails `/var/log/pods`, enriches with K8s metadata, ships to ClickHouse:
 
 ```
 Receivers:
@@ -42,15 +41,21 @@ Processors:
   batch: timeout=5s
 
 Exporters:
-  clickhouse: http://clickhouse.observability.svc.cluster.local:8123
+  clickhouse:
+    endpoint: tcp://clickhouse.observability.svc.cluster.local:9000
+    database: default
+    logs_table_name: otel_logs
+    ttl_days: 3
 
 Pipeline:
   logs: filelog → [k8sattributes, batch] → clickhouse
 ```
 
+> ClickHouse native TCP port is 9000. HTTP port 8123 is for the web UI and Grafana data source only.
+
 ## ServiceMonitor
 
-The Prometheus Operator `ServiceMonitor` scrapes the OTel Collector's `/metrics` endpoint:
+The Prometheus Operator `ServiceMonitor` scrapes the OTel Collector Deployment's `/metrics` endpoint:
 
 ```yaml
 spec:
@@ -77,7 +82,7 @@ instrumentation.opentelemetry.io/inject-python: "true"
 ```yaml
 env:
   - name: OTEL_EXPORTER_OTLP_ENDPOINT
-    value: "http://opentelemetry-collector.observability.svc.cluster.local:4317"
+    value: "http://otel-collector-collector.observability.svc.cluster.local:4317"
   - name: OTEL_SERVICE_NAME
     value: "my-service"
 ```
@@ -99,5 +104,5 @@ rules:
 | No metrics in Prometheus | `kubectl get servicemonitor -n observability` — label `release:` must match |
 | Collector CrashLoop | `kubectl logs deployment/opentelemetry-collector -n observability` — config YAML parse error |
 | No traces in Jaeger | Verify `jaeger-collector` service exists; check `insecure: true` on OTLP exporter |
-| No logs in ClickHouse | Check DaemonSet RBAC; verify ClickHouse pod running |
+| No logs in ClickHouse | Check DaemonSet RBAC; verify ClickHouse pod running; confirm TCP port 9000 |
 | Grafana /grafana 404 | Check `serve_from_sub_path=true` and `root_url` in Grafana Helm values |

@@ -18,27 +18,30 @@ A local Kubernetes observability POC using **OpenTelemetry** as the unified coll
 Applications (instrumented)
         │
         ▼ OTLP gRPC :4317
-OpenTelemetry Collector (Deployment)
+OTel Collector — Deployment
         │
-   ┌────┼────┐
-   ▼    ▼    ▼
-Prometheus Jaeger ClickHouse
-   │         │         │
-   └─────────┴─────────┘
-                │
-             Grafana (unified dashboards)
-```
+   ┌────┴────┐
+   ▼         ▼
+Prometheus  Jaeger
+   │         │
+   └────┬────┘
+        ▼
+     Grafana
 
-OTel Collector also runs as a **DaemonSet** (one pod per node) for log tailing:
-```
-/var/log/pods (node) → filelog receiver → k8sattributes → ClickHouse
+OTel Collector — DaemonSet (one per node)
+        │
+        ▼ filelog → k8sattributes
+   ClickHouse
+        │
+        ▼
+     Grafana
 ```
 
 ## Component Map
 
 | Component | Namespace | Helm Chart | Purpose |
 |---|---|---|---|
-| Traefik | traefik | traefik/traefik | Ingress, NodePort 30080 |
+| Traefik | traefik | traefik/traefik | Ingress, NodePort 30080/30443 |
 | ArgoCD | argocd | argo-helm | GitOps reconciler |
 | Prometheus | observability | bitnami/prometheus | Metrics store |
 | Grafana | observability | bitnami/grafana | Unified visualization |
@@ -63,8 +66,20 @@ All UIs via Traefik at `http://localhost:30080`:
 
 Name: `observability-cluster`
 Kubernetes: v1.33.1
-Topology: 1 control-plane + 2 workers
+Topology: 1 control-plane + 3 workers
 Port mappings: `30080 → :80`, `30443 → :443`
+Config: `kind-config.yaml`
+
+## Container Runtime
+
+**Podman** — Docker is not used. Set via `.envrc` (sourced per shell session):
+
+```bash
+KIND_EXPERIMENTAL_PROVIDER=podman
+DOCKER_HOST=unix:///run/user/1000/podman/podman.sock
+```
+
+Also injected automatically by Claude Code via the `env` block in `.claude/settings.json`.
 
 ## OTel Operator Target Architecture
 
@@ -76,7 +91,7 @@ The guide (`otel operator for k8s.md`) describes the next evolution: replacing t
 - `Instrumentation` CR for auto-injection into app pods
 - Jaeger Operator managing a `Jaeger` CR
 
-> Note: The guide references Elasticsearch for logs. **This project uses ClickHouse** for log storage instead.
+> Note: The guide references Elasticsearch for logs. **This project uses ClickHouse** instead.
 
 ## ArgoCD Sync Order
 
