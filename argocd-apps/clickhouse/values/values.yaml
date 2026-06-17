@@ -1,20 +1,7 @@
-auth:
-  username: default
-  password: clickhouse123
-
-service:
-  type: ClusterIP
-
-persistence:
-  enabled: true
-  size: 20Gi
-
-resources:
-  limits:
-    memory: 2Gi
-    cpu: 2000m
-  requests:
-    memory: 1Gi
-    cpu: 1000m
-
-replicaCount: 1
+clickhouse:
+  cluster:
+    spec:
+      settings:
+        extraConfig:
+          background_schedule_pool_size: 16
+          max_thread_pool_size: 10000
