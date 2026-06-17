@@ -1,5 +1,5 @@
 ---
-description: Verify all three OTel pillars (metrics → Prometheus, traces → Jaeger, logs → ClickHouse) are flowing end-to-end
+description: Verify all three OTel pillars (metrics → Prometheus, traces → Jaeger, logs → Loki) are flowing end-to-end
 allowed-tools:
   - Bash
 ---
@@ -24,7 +24,7 @@ kubectl port-forward -n observability svc/prometheus-server 9090:80 &
 PF1=$!
 sleep 3
 
-curl -s "http://localhost:9090/api/v1/targets" | python3 -c "
+curl -s "http://localhost:9090/prometheus/api/v1/targets" | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
 targets = d.get('data', {}).get('activeTargets', [])
@@ -35,7 +35,7 @@ if not otel:
     print('WARNING: no OTel targets found in Prometheus')
 "
 
-curl -s "http://localhost:9090/api/v1/query?query=otelcol_receiver_accepted_metric_points_total" | \
+curl -s "http://localhost:9090/prometheus/api/v1/query?query=otelcol_receiver_accepted_metric_points_total" | \
   python3 -c "import sys,json; d=json.load(sys.stdin); print('Metrics PASS' if d['data']['result'] else 'Metrics FAIL: no data')"
 
 kill $PF1 2>/dev/null
@@ -44,11 +44,11 @@ kill $PF1 2>/dev/null
 ### 3. Traces → Jaeger
 
 ```bash
-kubectl port-forward -n observability svc/jaeger-query 16686:16686 &
+kubectl port-forward -n observability svc/jaeger 16686:16686 &
 PF2=$!
 sleep 3
 
-curl -s "http://localhost:16686/api/services" | python3 -c "
+curl -s "http://localhost:16686/jaeger/api/services" | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
 services = d.get('data', [])
@@ -58,17 +58,19 @@ print('Traces PASS — services:', services) if services else print('Traces: no 
 kill $PF2 2>/dev/null
 ```
 
-### 4. Logs → ClickHouse
+### 4. Logs → Loki
 
 ```bash
-kubectl port-forward -n observability svc/clickhouse 8123:8123 &
+kubectl port-forward -n observability svc/loki 3100:3100 &
 PF3=$!
 sleep 3
 
-COUNT=$(curl -s "http://localhost:8123/?query=SELECT+count()+FROM+otel_logs" \
-  --user "default:clickhouse123" 2>/dev/null || echo "0")
-echo "Logs in otel_logs table: $COUNT"
-[ "$COUNT" -gt 0 ] && echo "Logs PASS" || echo "Logs FAIL: table empty or unreachable"
+curl -s "http://localhost:3100/loki/api/v1/labels" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+labels = d.get('data', [])
+print('Logs PASS — labels:', labels) if labels else print('Logs FAIL: no labels found (no logs ingested yet)')
+"
 
 kill $PF3 2>/dev/null
 ```
