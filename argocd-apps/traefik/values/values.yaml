@@ -50,6 +50,10 @@ metrics:
     addEntryPointsLabels: true
     addServicesLabels: true
 
+providers:
+  kubernetesCRD:
+    allowCrossNamespace: true
+
 additionalArguments:
   - "--providers.kubernetesingress.ingressclass=traefik"
 
@@ -80,3 +84,18 @@ extraObjects:
           services:
             - name: api@internal
               kind: TraefikService
+  - apiVersion: traefik.io/v1alpha1
+    kind: IngressRoute
+    metadata:
+      name: argocd
+      namespace: traefik
+    spec:
+      entryPoints:
+        - web
+      routes:
+        - match: PathPrefix(`/argocd`)
+          kind: Rule
+          services:
+            - name: argocd-server
+              namespace: argocd
+              port: 80
