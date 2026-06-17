@@ -1,5 +1,8 @@
 adminPassword: admin123
 
+initChownData:
+  enabled: false
+
 service:
   type: ClusterIP
 
