@@ -14,6 +14,7 @@ Each repo must be owned and published by the upstream project itself.
 
 | Repo alias | URL | Maintained by |
 |---|---|---|
+| `argo` | https://argoproj.github.io/argo-helm | Argo Project (CNCF) |
 | `prometheus-community` | https://prometheus-community.github.io/helm-charts | Prometheus community (CNCF) |
 | `grafana` | https://grafana.github.io/helm-charts | Grafana Labs |
 | `jaegertracing` | https://jaegertracing.github.io/helm-charts | Jaeger project (CNCF) |

@@ -1,81 +1,121 @@
 ---
-description: Guided step-by-step deployment of the full observability stack with pre-flight checks at each stage
-argument-hint: "[--step <1-5>]"
+description: Deploy the observability stack — ArgoCD via Helm, then ArgoCD manages all apps from argocd-apps/
+argument-hint: "[--step <1-4>]"
 allowed-tools:
   - Bash
   - Read
 ---
 
-Deploy the full stack using kubectl, helm, and kind with Podman as the container runtime.
+Deploy flow:
+1. Pre-flight checks
+2. Helm installs ArgoCD onto the Kind cluster
+3. ArgoCD Application CRDs are applied from `argocd-apps/`
+4. ArgoCD reads each app's local `chart/` and `values/values.yaml` and deploys them
+
 Pass `--step N` to run only a specific step.
 
 ## Pre-flight
 
 ```bash
-# Podman (required — Docker is not used)
-podman version 2>/dev/null && echo "Podman: OK" || echo "Podman: NOT FOUND — install podman"
+source .envrc
 
-# Verify Podman socket is running (needed by kind)
-ls "${XDG_RUNTIME_DIR}/podman/podman.sock" 2>/dev/null \
-  && echo "Podman socket: OK" \
-  || echo "Podman socket: NOT RUNNING — run: systemctl --user start podman.socket"
+# Tooling
+podman version 2>/dev/null && echo "podman: OK" || echo "podman: NOT FOUND"
+kind version 2>/dev/null && echo "kind: OK" || echo "kind: NOT FOUND"
+kubectl version --client 2>/dev/null && echo "kubectl: OK" || echo "kubectl: NOT FOUND"
+helm version 2>/dev/null && echo "helm: OK" || echo "helm: NOT FOUND"
 
-# Verify env vars are set (sourced from .envrc or shell profile)
-[ "$KIND_EXPERIMENTAL_PROVIDER" = "podman" ] \
-  && echo "KIND_EXPERIMENTAL_PROVIDER: OK" \
-  || echo "KIND_EXPERIMENTAL_PROVIDER not set — run: source .envrc"
+# Kind cluster must be running
+kind get clusters | grep -q observability-cluster \
+  && echo "cluster: OK" \
+  || echo "cluster: NOT RUNNING — run /kind-cluster start first"
 
-[ -n "$DOCKER_HOST" ] \
-  && echo "DOCKER_HOST: $DOCKER_HOST" \
-  || echo "DOCKER_HOST not set — run: source .envrc"
-
-kubectl version --client 2>/dev/null && echo "kubectl: OK" || echo "kubectl: MISSING"
-kind version 2>/dev/null && echo "kind: OK" || echo "kind: MISSING"
-helm version 2>/dev/null && echo "helm: OK" || echo "helm: MISSING"
+# Local charts must be present
+missing=()
+for app in traefik prometheus grafana jaeger clickhouse-operators clickhouse opentelemetry-collector; do
+  [ -f "argocd-apps/$app/chart/Chart.yaml" ] || missing+=("$app")
+done
+[ ${#missing[@]} -eq 0 ] \
+  && echo "charts: OK" \
+  || echo "charts: MISSING — run /helm add-repos then /helm pull: ${missing[*]}"
 ```
 
-Stop if any check fails.
+Stop if any check fails before proceeding.
 
-## Steps
-
-### Step 1 — Kind cluster (via Podman)
+## Step 1 — Deploy ArgoCD via Helm
 
 ```bash
-kind create cluster --name observability-cluster --config kind-config.yaml
-kubectl get nodes  # verify: 1 control-plane + 3 workers, all Ready
+helm repo add argo https://argoproj.github.io/argo-helm
+helm repo update argo
+
+helm upgrade --install argocd argo/argo-cd \
+  --namespace argocd \
+  --create-namespace \
+  --wait
+
+kubectl get pods -n argocd
 ```
 
-### Step 2 — ArgoCD
+Retrieve the initial admin password:
 
 ```bash
-kubectl create namespace argocd
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-kubectl wait --for=condition=Available deployment/argocd-server -n argocd --timeout=120s
+kubectl get secret argocd-initial-admin-secret -n argocd \
+  -o jsonpath='{.data.password}' | base64 -d && echo
 ```
 
-### Step 3 — Observability stack
+## Step 2 — Register Git repo with ArgoCD
+
+ArgoCD needs access to this Git repo to read the local `chart/` and `values/` directories.
+
+```bash
+# Install ArgoCD CLI if not present
+# https://argo-cd.readthedocs.io/en/stable/cli_installation/
+
+# Port-forward ArgoCD server (run in background)
+kubectl port-forward svc/argocd-server -n argocd 8080:443 &
+ARGOCD_PF_PID=$!
+
+# Login
+ARGOCD_PASS=$(kubectl get secret argocd-initial-admin-secret -n argocd \
+  -o jsonpath='{.data.password}' | base64 -d)
+argocd login localhost:8080 --username admin --password "$ARGOCD_PASS" --insecure
+
+# Register the repo (SSH key or HTTPS token required for private repos)
+argocd repo add https://github.com/nikhil-pagote/k8s_observebility.git
+
+kill $ARGOCD_PF_PID 2>/dev/null
+```
+
+## Step 3 — Apply ArgoCD Application manifests
+
+This tells ArgoCD what apps to deploy and where to find their charts and values:
 
 ```bash
 kubectl apply -k argocd-apps/
+kubectl get applications -n argocd
 ```
 
-Wait for ArgoCD to sync: `kubectl get applications -n argocd` — all Synced/Healthy.
-ArgoCD sync can take 5–10 minutes as Helm charts pull from upstream.
+ArgoCD will now deploy all apps from the local `chart/` directories using `values/values.yaml`.
 
-### Step 4 — Sample apps
+Sync order (controlled by `argocd.argoproj.io/sync-wave`):
+- Wave 0: Traefik, ClickHouse Operators
+- Wave 1: Prometheus, Grafana, ClickHouse
+- Wave 2: Jaeger, OTel Collector
+
+## Step 4 — Monitor deployment
 
 ```bash
-kubectl apply -f apps/load-generator/ -n observability
-kubectl apply -f apps/sample-app/deployment-basic.yaml -n observability
+# Watch all applications converge
+kubectl get applications -n argocd -w
+
+# Watch pods come up
+kubectl get pods -n observability -w
+kubectl get pods -n traefik -w
+
+# Verify ingress once Traefik is Ready
+curl -sI http://localhost:30080/grafana | head -1
+curl -sI http://localhost:30080/prometheus | head -1
+curl -sI http://localhost:30080/jaeger | head -1
 ```
 
-### Step 5 — Verify ingress
-
-```bash
-kubectl get ingressroute -n observability
-curl -sI http://localhost:30080/grafana | head -1  # expect HTTP/1.1 200 or 302
-```
-
-## Post-deploy
-
-Run `/verify-otel` to confirm all three pillars are flowing.
+Run `/verify-otel` to confirm all three pillars are flowing end-to-end.

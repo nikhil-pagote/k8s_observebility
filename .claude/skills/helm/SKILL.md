@@ -14,6 +14,7 @@ Pull Helm charts locally into `argocd-apps/<app>/chart/` so ArgoCD can deploy fr
 Register all official Helm repos used by this stack:
 
 ```bash
+helm repo add argo https://argoproj.github.io/argo-helm
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo add grafana https://grafana.github.io/helm-charts
 helm repo add jaegertracing https://jaegertracing.github.io/helm-charts
