@@ -20,7 +20,6 @@ Each repo must be owned and published by the upstream project itself.
 | `jaegertracing` | https://jaegertracing.github.io/helm-charts | Jaeger project (CNCF) |
 | `open-telemetry` | https://open-telemetry.github.io/opentelemetry-helm-charts | OpenTelemetry project (CNCF) |
 | `traefik` | https://traefik.github.io/charts | Traefik Labs |
-| `clickstack` | https://clickhouse.github.io/ClickStack-helm-charts | ClickHouse Inc. |
 
 ## Adding a New Chart
 

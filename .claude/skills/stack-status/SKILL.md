@@ -42,7 +42,7 @@ Report as a table:
 | Prometheus | observability | Running / Error | |
 | Grafana | observability | Running / Error | |
 | Jaeger | observability | Running / Error | |
-| ClickHouse | observability | Running / Error | |
+| Loki | observability | Running / Error | |
 | OTel Collector | observability | Running / Error | |
 
 List any pods in CrashLoopBackOff, Pending, or Error state with a brief log snippet.

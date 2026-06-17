@@ -63,7 +63,7 @@ pre-commit install
 **Cluster topology:**
 - Kind cluster `observability-cluster`: 1 control-plane + 3 workers
 - NodePort mappings: `30080 → :80`, `30443 → :443`
-- All UIs via Traefik at `http://localhost:30080/{grafana,prometheus,jaeger,clickhouse,traefik,argocd}`
+- All UIs via Traefik at `http://localhost:30080/{grafana,prometheus,jaeger,argocd}` and `/traefik` redirects to `/dashboard/`
 
 **Namespace layout:**
 
@@ -71,15 +71,15 @@ pre-commit install
 |---|---|
 | `traefik` | Traefik ingress controller (sync-wave 0 — deployed first) |
 | `argocd` | ArgoCD server + application controller |
-| `observability` | Prometheus, Grafana, Jaeger, ClickHouse, OTel Collector |
+| `observability` | Prometheus, Grafana, Jaeger, Loki, OTel Collector |
 
-**Data flow:** Apps → OTel Collector (OTLP :4317) → Prometheus (metrics) + Jaeger (traces) + ClickHouse (logs) → Grafana
+**Data flow:** Apps → OTel Collector (OTLP :4317) → Prometheus (metrics) + Jaeger (traces) + Loki (logs) → Grafana
 
 ## Key constraints
 
 - ArgoCD sync-wave ordering: Traefik must be running before other apps create IngressRoutes.
 - Grafana sub-path routing requires `serve_from_sub_path=true` and matching `root_url` in Helm values.
-- **Log store is ClickHouse** — not Elasticsearch (the guide `otel operator for k8s.md` references ES, but this project uses ClickHouse).
+- **Log store is Loki** — the guide `otel operator for k8s.md` references Elasticsearch/ClickHouse, but this project uses Loki (single-binary, filesystem storage). Logs are received via OTLP (not filelog DaemonSet).
 - OTel Collector in-cluster endpoint: `http://opentelemetry-collector.observability.svc.cluster.local:4317`
 
 ## Project skills
@@ -90,9 +90,9 @@ Skills in `.claude/skills/` (invoke via the Skill tool):
 |---|---|
 | `validate` | `kubectl --dry-run=client` on all manifests |
 | `stack-status` | Component health table across all namespaces |
-| `verify-otel` | End-to-end pillar check (metrics → Prometheus, traces → Jaeger, logs → ClickHouse) |
+| `verify-otel` | End-to-end pillar check (metrics → Prometheus, traces → Jaeger, logs → Loki) |
 | `deploy` | Guided deployment with pre-flight checks |
-| `helm` | Add repos, pull charts locally into `argocd-apps/charts/` |
+| `helm` | Add repos, pull charts locally into `argocd-apps/<app>/chart/` |
 | `kind-cluster` | Start, stop, restart, or check status of the Kind cluster |
 
 Architecture and pipeline details: `.claude/specs/`

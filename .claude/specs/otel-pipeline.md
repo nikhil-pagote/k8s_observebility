@@ -2,56 +2,35 @@
 
 ## Collector Pipelines
 
-### Metrics + Traces Collector (Deployment)
+### OTel Collector (single Deployment — all three pillars)
 
-Receives OTLP from instrumented apps and fans out to Prometheus and Jaeger only:
+One Deployment handles metrics, traces, and logs. No DaemonSet.
 
 ```
 Receivers:
   otlp:
     grpc: 0.0.0.0:4317
     http: 0.0.0.0:4318
+  prometheus: (kubernetes_sd scrape configs for pods/endpoints/nodes)
 
 Processors:
-  memory_limiter: limit=400MiB, spike=100MiB, check_interval=5s
-  batch: timeout=10s
+  memory_limiter: limit=1500MiB, check_interval=1s
+  batch: timeout=1s, send_batch_size=1024
+  resource: k8s.cluster.name=observability-cluster
 
 Exporters:
-  prometheus: 0.0.0.0:8889      → scraped by Prometheus ServiceMonitor
-  otlp/jaeger: jaeger-collector:4317 → Jaeger trace storage
-  debug: verbosity=basic
+  prometheus: 0.0.0.0:9464       → scraped by Prometheus
+  otlp/jaeger: jaeger-collector.observability.svc.cluster.local:14250
+  otlphttp/loki: http://loki.observability.svc.cluster.local:3100/otlp
+  debug: verbosity=detailed
 
 Pipelines:
-  metrics: otlp → [memory_limiter, batch] → [prometheus, debug]
-  traces:  otlp → [memory_limiter, batch] → [otlp/jaeger, debug]
+  metrics: [otlp, prometheus] → [batch, memory_limiter, resource] → [prometheus, debug]
+  traces:  [otlp]             → [batch, memory_limiter, resource] → [otlp/jaeger, debug]
+  logs:    [otlp]             → [batch, memory_limiter, resource] → [otlphttp/loki, debug]
 ```
 
-### Log Collector (DaemonSet)
-
-One pod per node. Tails `/var/log/pods`, enriches with K8s metadata, ships to ClickHouse:
-
-```
-Receivers:
-  filelog:
-    include: /var/log/pods/*/*/*.log
-    operators: [container parser]   # extracts k8s.pod.name, k8s.namespace.name
-
-Processors:
-  k8sattributes: enriches with pod/namespace/node metadata (requires RBAC)
-  batch: timeout=5s
-
-Exporters:
-  clickhouse:
-    endpoint: tcp://clickhouse.observability.svc.cluster.local:9000
-    database: default
-    logs_table_name: otel_logs
-    ttl_days: 3
-
-Pipeline:
-  logs: filelog → [k8sattributes, batch] → clickhouse
-```
-
-> ClickHouse native TCP port is 9000. HTTP port 8123 is for the web UI and Grafana data source only.
+> Image: `otel/opentelemetry-collector-contrib` (contrib required for otlphttp/loki and prometheus receiver).
 
 ## ServiceMonitor
 
@@ -72,12 +51,6 @@ Label `release: kube-prometheus-stack` must match the Helm release name for Prom
 
 ## Application Instrumentation
 
-**Auto-instrumentation** (OTel Operator target):
-```yaml
-# Add annotation to Deployment pod template
-instrumentation.opentelemetry.io/inject-python: "true"
-```
-
 **Manual OTLP env vars:**
 ```yaml
 env:
@@ -87,22 +60,12 @@ env:
     value: "my-service"
 ```
 
-## RBAC Requirements (DaemonSet)
-
-The log collector needs a `ClusterRole` with:
-```yaml
-rules:
-  - apiGroups: [""]
-    resources: ["pods", "namespaces", "nodes"]
-    verbs: ["get", "list", "watch"]
-```
-
 ## Troubleshooting Checklist
 
 | Symptom | Check |
 |---|---|
-| No metrics in Prometheus | `kubectl get servicemonitor -n observability` — label `release:` must match |
+| No metrics in Prometheus | `kubectl logs deployment/opentelemetry-collector -n observability` — check prometheus exporter and scrape config |
 | Collector CrashLoop | `kubectl logs deployment/opentelemetry-collector -n observability` — config YAML parse error |
 | No traces in Jaeger | Verify `jaeger-collector` service exists; check `insecure: true` on OTLP exporter |
-| No logs in ClickHouse | Check DaemonSet RBAC; verify ClickHouse pod running; confirm TCP port 9000 |
+| No logs in Loki | `kubectl logs deployment/opentelemetry-collector -n observability`; verify Loki pod running; check otlphttp/loki endpoint |
 | Grafana /grafana 404 | Check `serve_from_sub_path=true` and `root_url` in Grafana Helm values |

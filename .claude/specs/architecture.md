@@ -10,7 +10,7 @@ A local Kubernetes observability POC using **OpenTelemetry** as the unified coll
 |---|---|---|
 | Metrics | Prometheus + Grafana | Scrape, store, and visualize metrics |
 | Traces | Jaeger | Distributed trace storage and UI |
-| Logs | ClickHouse | High-performance log storage and querying |
+| Logs | Loki | Log aggregation and querying |
 
 ## Data Flow
 
@@ -20,21 +20,13 @@ Applications (instrumented)
         ▼ OTLP gRPC :4317
 OTel Collector — Deployment
         │
-   ┌────┴────┐
-   ▼         ▼
-Prometheus  Jaeger
-   │         │
-   └────┬────┘
-        ▼
-     Grafana
-
-OTel Collector — DaemonSet (one per node)
-        │
-        ▼ filelog → k8sattributes
-   ClickHouse
-        │
-        ▼
-     Grafana
+   ┌────┴──────┐
+   ▼           ▼           ▼
+Prometheus  Jaeger       Loki
+   │           │           │
+   └─────┬─────┘           │
+         ▼                 │
+      Grafana ◄────────────┘
 ```
 
 ## Component Map
@@ -42,25 +34,24 @@ OTel Collector — DaemonSet (one per node)
 | Component | Namespace | Helm Chart | Purpose |
 |---|---|---|---|
 | Traefik | traefik | traefik/traefik | Ingress, NodePort 30080/30443 |
-| ArgoCD | argocd | argo-helm | GitOps reconciler |
-| Prometheus | observability | bitnami/prometheus | Metrics store |
-| Grafana | observability | bitnami/grafana | Unified visualization |
+| ArgoCD | argocd | argo/argo-cd | GitOps reconciler |
+| Prometheus | observability | prometheus-community/prometheus | Metrics store |
+| Grafana | observability | grafana/grafana | Unified visualization |
 | Jaeger | observability | jaegertracing/jaeger | Trace store (in-memory for POC) |
-| ClickHouse | observability | bitnami/clickhouse | Log store |
-| OTel Collector | observability | open-telemetry/opentelemetry-collector | OTLP receiver, fan-out |
+| Loki | observability | grafana/loki | Log store (single-binary, filesystem) |
+| OTel Collector | observability | open-telemetry/opentelemetry-collector | OTLP receiver, fan-out to all backends |
 
 ## Ingress Routing
 
 All UIs via Traefik at `http://localhost:30080`:
 
-| Path | Service | Port |
-|---|---|---|
-| `/grafana` | Grafana | 80 |
-| `/prometheus` | Prometheus | 9090 |
-| `/jaeger` | Jaeger Query | 16686 |
-| `/clickhouse` | ClickHouse HTTP | 8123 |
-| `/traefik` | Traefik Dashboard | 9000 |
-| `/argocd` | ArgoCD Server | 80 |
+| Path | Service | Port | Notes |
+|---|---|---|---|
+| `/grafana` | grafana | 80 | sub-path routing via `serve_from_sub_path=true` |
+| `/prometheus` | prometheus-server | 80 | |
+| `/jaeger` | jaeger | 16686 | |
+| `/traefik` | Traefik Dashboard | — | redirects to `/dashboard/` via middleware |
+| `/argocd` | argocd-server (argocd ns) | 80 | cross-namespace IngressRoute in traefik ns |
 
 ## Kind Cluster
 
@@ -81,29 +72,21 @@ DOCKER_HOST=unix:///run/user/1000/podman/podman.sock
 
 Also injected automatically by Claude Code via the `env` block in `.claude/settings.json`.
 
-## OTel Operator Target Architecture
+## OTel Operator
 
-The guide (`otel operator for k8s.md`) describes the next evolution: replacing the plain OTel Collector Deployment with the **OTel Operator** managing Collector CRDs. Key additions:
-
-- cert-manager for webhook TLS
-- `OpenTelemetryCollector` CR (Deployment mode for metrics+traces)
-- `OpenTelemetryCollector` CR (DaemonSet mode for logs → ClickHouse)
-- `Instrumentation` CR for auto-injection into app pods
-- Jaeger Operator managing a `Jaeger` CR
-
-> Note: The guide references Elasticsearch for logs. **This project uses ClickHouse** instead.
+Not used. The stack runs a plain `opentelemetry-collector-contrib` Deployment (no OTel Operator, no cert-manager). The guide `otel operator for k8s.md` documents an alternative operator-based approach — it is reference only and does not reflect the current deployment.
 
 ## ArgoCD Sync Order
 
 Sync-wave annotation controls order:
 1. Wave 0: Traefik (must be first — other apps depend on ingress)
-2. Wave 1+: Prometheus, Grafana, Jaeger, ClickHouse, OTel Collector
+2. Wave 1+: Prometheus, Grafana, Jaeger, Loki, OTel Collector
 
 ## Grafana Data Sources
 
-Auto-provisioned:
+Auto-provisioned via Grafana Helm values:
 - Prometheus: `http://prometheus-server.observability.svc.cluster.local:80`
+- Loki: `http://loki.observability.svc.cluster.local:3100`
 
-Manual (add via UI):
-- Jaeger: `http://jaeger-query.observability.svc.cluster.local:16686`
-- ClickHouse: `http://clickhouse.observability.svc.cluster.local:8123` (plugin required)
+Jaeger traces are queried via Grafana's Jaeger data source (manual or provisioned separately):
+- Jaeger: `http://jaeger.observability.svc.cluster.local:16686`
