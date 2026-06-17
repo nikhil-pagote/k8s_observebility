@@ -52,3 +52,31 @@ metrics:
 
 additionalArguments:
   - "--providers.kubernetesingress.ingressclass=traefik"
+
+extraObjects:
+  - apiVersion: traefik.io/v1alpha1
+    kind: Middleware
+    metadata:
+      name: redirect-to-dashboard
+      namespace: traefik
+    spec:
+      redirectRegex:
+        regex: "^http://([^/]+)/traefik$"
+        replacement: "http://${1}/dashboard/"
+        permanent: false
+  - apiVersion: traefik.io/v1alpha1
+    kind: IngressRoute
+    metadata:
+      name: traefik-alias
+      namespace: traefik
+    spec:
+      entryPoints:
+        - web
+      routes:
+        - match: Path(`/traefik`)
+          kind: Rule
+          middlewares:
+            - name: redirect-to-dashboard
+          services:
+            - name: api@internal
+              kind: TraefikService
