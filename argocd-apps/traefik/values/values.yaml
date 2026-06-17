@@ -41,6 +41,8 @@ api:
 ingressRoute:
   dashboard:
     enabled: true
+    entryPoints:
+      - web
 
 metrics:
   prometheus:
