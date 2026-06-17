@@ -21,16 +21,16 @@ spec:
         auth:
           username: default
           password: clickhouse123
-        
+
         # Service Configuration
         service:
           type: ClusterIP
-        
+
         # Persistence
         persistence:
           enabled: true
           size: 20Gi
-        
+
         # Resources
         resources:
           limits:
@@ -39,7 +39,7 @@ spec:
           requests:
             memory: 1Gi
             cpu: 1000m
-        
+
         # Replica Configuration
         replicaCount: 1
   destination:
@@ -56,4 +56,4 @@ spec:
       backoff:
         duration: 5s
         factor: 2
-        maxDuration: 3m 
+        maxDuration: 3m

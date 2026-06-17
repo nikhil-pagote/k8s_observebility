@@ -23,7 +23,7 @@ spec:
           options:
             memory:
               maxTraces: 50000
-        
+
         # Query service configuration
         query:
           service:
@@ -35,7 +35,7 @@ spec:
             requests:
               memory: 256Mi
               cpu: 250m
-        
+
         # Collector configuration
         collector:
           service:
@@ -47,11 +47,11 @@ spec:
             requests:
               memory: 256Mi
               cpu: 250m
-        
+
         # Disable agent since we're using OpenTelemetry
         agent:
           enabled: false
-        
+
         # Disable Cassandra and other storage backends
         cassandra:
           enabled: false
@@ -59,11 +59,11 @@ spec:
           enabled: false
         kafka:
           enabled: false
-        
+
         # Ingress configuration (optional)
         ingress:
           enabled: false
-        
+
         # Service account configuration
         serviceAccount:
           create: true
@@ -74,4 +74,4 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
-      - CreateNamespace=true 
+      - CreateNamespace=true

@@ -27,14 +27,14 @@ spec:
             requests:
               memory: 128Mi
               cpu: 100m
-        
+
         # Service Configuration
         service:
           type: NodePort
           nodePorts:
             web: 30080
             websecure: 30443
-        
+
         # Dashboard Configuration
         dashboard:
           enabled: true
@@ -44,7 +44,7 @@ spec:
           service:
             type: ClusterIP
             port: 9000
-        
+
         # Metrics Configuration
         metrics:
           prometheus:
@@ -52,24 +52,24 @@ spec:
             addEntryPointsLabels: true
             addServicesLabels: true
             entryPoint: metrics
-        
+
         # Logging Configuration
         logs:
           general:
             level: INFO
           access:
             enabled: true
-        
+
         # IngressRoute CRD (v2)
         ingressRoute:
           dashboard:
             enabled: true
-        
+
         # Ingress (v1) support
         ingress:
           enabled: true
           isDefaultClass: true
-        
+
         # Additional Arguments
         additionalArguments:
           - "--api.dashboard=true"
@@ -78,7 +78,7 @@ spec:
           - "--entrypoints.web.address=:80"
           - "--entrypoints.websecure.address=:443"
           - "--entrypoints.metrics.address=:8082"
-        
+
         # Ports Configuration
         ports:
           web:
@@ -101,4 +101,4 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
-      - CreateNamespace=true 
+      - CreateNamespace=true

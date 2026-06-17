@@ -69,4 +69,4 @@ metadata:
     app.kubernetes.io/managed-by: argocd
 data:
   hosts.txt: |
-    127.0.0.1 localhost 
+    127.0.0.1 localhost

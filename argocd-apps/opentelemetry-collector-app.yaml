@@ -18,16 +18,16 @@ spec:
     helm:
       values: |
         mode: deployment
-        
+
         service:
           type: ClusterIP
-        
+
         # ServiceAccount Configuration for Kubernetes scraping
         serviceAccount:
           create: true
           name: opentelemetry-collector
           annotations: {}
-        
+
         resources:
           limits:
             memory: 512Mi
@@ -35,7 +35,7 @@ spec:
           requests:
             memory: 256Mi
             cpu: 250m
-        
+
         config:
           receivers:
             otlp:
@@ -72,7 +72,7 @@ spec:
                       - source_labels: [__meta_kubernetes_pod_name]
                         action: replace
                         target_label: kubernetes_pod_name
-                  
+
                   # Kubernetes Service Endpoints with Prometheus annotations
                   - job_name: 'kubernetes-service-endpoints'
                     kubernetes_sd_configs:
@@ -102,7 +102,7 @@ spec:
                       - source_labels: [__meta_kubernetes_service_name]
                         action: replace
                         target_label: kubernetes_name
-                  
+
                   # Kubernetes Nodes (system metrics)
                   - job_name: 'kubernetes-nodes'
                     kubernetes_sd_configs:
@@ -119,7 +119,7 @@ spec:
                       ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
                       insecure_skip_verify: true
                     bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
-                  
+
                   # CoreDNS metrics
                   - job_name: 'coredns'
                     kubernetes_sd_configs:
@@ -139,7 +139,7 @@ spec:
                       - source_labels: [__meta_kubernetes_service_name]
                         action: replace
                         target_label: kubernetes_name
-                  
+
                   # Grafana metrics
                   - job_name: 'grafana'
                     kubernetes_sd_configs:
@@ -160,7 +160,7 @@ spec:
                         action: replace
                         target_label: kubernetes_name
                     metrics_path: /metrics
-                  
+
                   # Alertmanager metrics
                   - job_name: 'alertmanager'
                     kubernetes_sd_configs:
@@ -181,7 +181,7 @@ spec:
                         action: replace
                         target_label: kubernetes_name
                     metrics_path: /metrics
-          
+
           processors:
             batch:
               timeout: 1s
@@ -194,7 +194,7 @@ spec:
                 - key: k8s.cluster.name
                   value: "observability-cluster"
                   action: upsert
-          
+
           exporters:
             prometheus:
               endpoint: "0.0.0.0:9464"
@@ -214,7 +214,7 @@ spec:
               endpoint: "http://clickhouse-hdx-oss-v2-app.observability.svc.cluster.local:3000"
               headers:
                 "Content-Type": "application/json"
-          
+
           service:
             pipelines:
               traces:
@@ -277,4 +277,4 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: opentelemetry-collector
-    namespace: observability 
+    namespace: observability

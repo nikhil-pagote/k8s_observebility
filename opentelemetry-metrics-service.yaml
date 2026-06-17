@@ -15,4 +15,4 @@ spec:
       protocol: TCP
   selector:
     app.kubernetes.io/name: opentelemetry-collector
-    component: standalone-collector 
+    component: standalone-collector

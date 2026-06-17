@@ -17,4 +17,4 @@ resources:
 labels:
   - pairs:
       app.kubernetes.io/part-of: observability-stack
-      app.kubernetes.io/managed-by: argocd 
+      app.kubernetes.io/managed-by: argocd

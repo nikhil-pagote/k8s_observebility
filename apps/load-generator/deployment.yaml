@@ -26,10 +26,10 @@ spec:
             # Generate HTTP requests to sample app
             wget -q -O /dev/null http://sample-app-service.observability.svc.cluster.local:80/ || true
             wget -q -O /dev/null http://sample-app-service.observability.svc.cluster.local:80/status || true
-            
+
             # Generate some CPU load
             dd if=/dev/zero of=/dev/null bs=1M count=10 2>/dev/null || true
-            
+
             # Sleep for a random interval
             sleep $((RANDOM % 5 + 1))
           done
@@ -54,4 +54,4 @@ spec:
   ports:
   - name: http
     port: 80
-    targetPort: 80 
+    targetPort: 80

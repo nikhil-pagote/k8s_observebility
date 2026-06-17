@@ -1,440 +1,533 @@
 # Kubernetes Observability Stack
 
-A complete, production-ready Kubernetes observability stack deployed using GitOps principles with ArgoCD and Helm charts.
+A Kubernetes observability POC using **OpenTelemetry** as the unified collection layer, deployed via GitOps (ArgoCD), and exposed through a single Traefik ingress on path-based routing.
 
-## 🎯 Overview
+## Architecture
 
-This project provides a comprehensive observability solution for Kubernetes clusters with:
+### Three pillars
 
-- **📊 Metrics**: Prometheus + Grafana for monitoring and visualization
-- **🔍 Traces**: Jaeger for distributed tracing
-- **📝 Logs**: ClickHouse for log storage and querying
-- **📡 Data Collection**: OpenTelemetry Collector for unified telemetry collection
-- **🚀 GitOps**: ArgoCD for declarative deployment and management
+| Pillar | Tool | Role |
+|---|---|---|
+| **Metrics** | Prometheus + Grafana | Collect, store, and visualize metrics |
+| **Traces** | Jaeger | Distributed trace storage and query UI |
+| **Logs** | ClickHouse | High-performance log storage and querying |
 
-## 🏗️ Architecture
-
-### Data Flow Architecture
+### Data flow
 
 ```
-       ┌─────────────────┐
-       │   Applications  │
-       │   (Sample Apps) │
-       └─────────────────┘
-                │
-                ▼
-       ┌──────────────────┐
-       │ OpenTelemetry    │
-       │   Collector      │
-       └──────────────────┘
-                │
-    ┌───────────┼────────────┐
-    │           │            │
-    ▼           ▼            ▼
-┌─────────┐ ┌─────────┐ ┌─────────┐
-│Prometheus│ │  Jaeger │ │ClickHouse│
-│(Metrics) │ │(Traces) │ │ (Logs)  │
-└─────────┘ └─────────┘ └─────────┘
-    │            │           │
-    └────────────┼───────────┘
-                 │
-                 ▼
-         ┌───────────────┐
-         │   Grafana     │
-         │(Visualization)│
-         └───────────────┘
+flowchart LR
+    User["Browser"]
+    Ingress["Traefik :30080
+    ────────────────
+    /grafana
+    /prometheus
+    /jaeger
+    /clickhouse"]
+
+    subgraph Collectors["OTel Collectors"]
+        CD["Deployment (metrics + traces)"]
+        DS["DaemonSet (logs per node)"]
+    end
+
+    Prometheus["Prometheus"]
+    CH["ClickHouse"]
+    Jaeger["Jaeger"]
+    Grafana["Grafana"]
+
+    User --> Ingress
+    Ingress --> Grafana
+    Ingress --> Prometheus
+    Ingress --> Jaeger
+    App["App (OTLP)"] --> CD
+    CD --> Prometheus
+    CD --> Jaeger
+    DS --> CH
+    Prometheus --> Grafana
+    CH --> Grafana
+    Jaeger --> Grafana
 ```
 
-### Deployment Architecture
+### Components
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    ArgoCD Applications                          │
-├─────────────────┬─────────────────┬─────────────────┬───────────┤
-│   Grafana App   │  Prometheus App │   Jaeger App    │ClickHouse │
-│   (bitnami)     │    (bitnami)    │  (jaegertracing)│  (bitnami)│
-│   v12.0.8       │    v2.1.10      │    v0.71.0      │  v1.0.0  │
-└─────────────────┴─────────────────┴─────────────────┴───────────┘
-         │                │                │              │
-         ▼                ▼                ▼              ▼
-┌─────────────────┐ ┌─────────────────┐ ┌─────────────┐ ┌─────────────┐
-│    Grafana      │ │   Prometheus    │ │   Jaeger    │ │  ClickHouse │
-│   (Port 3000)   │ │   (Port 9090)   │ │ (Port 16686)│ │ (Port 8123) │
-│   Namespace:    │ │   Namespace:    │ │ Namespace:  │ │ Namespace:  │
-│  observability  │ │  observability  │ │observability│ │observability│
-└─────────────────┘ └─────────────────┘ └─────────────┘ └─────────────┘
-         │                │                │              │
-         └────────────────┼────────────────┼──────────────┘
-                          │                │
-                          ▼                ▼
-                   ┌─────────────────────────────────┐
-                   │      OpenTelemetry Collector    │
-                   │        (Data Routing)           │
-                   │      Namespace: observability   │
-                   └─────────────────────────────────┘
-                                   │
-                                   ▼
-                          ┌─────────────────┐
-                          │   Applications  │
-                          │  (Sample Apps)  │
-                          │  Namespace:     │
-                          │  observability  │
-                          └─────────────────┘
-```
+| Component | Namespace | Purpose |
+|---|---|---|
+| **Traefik** | traefik | Path-based ingress on NodePort 30080 |
+| **OTel Operator** | opentelemetry-operator-system | Manages Collector CRDs and admission webhooks |
+| **OTel Collector (Deployment)** | observability | Receives OTLP; fans out metrics → Prometheus, traces → Jaeger |
+| **OTel Collector (DaemonSet)** | observability | Tails `/var/log/pods` per node; ships to ClickHouse |
+| **Prometheus** | observability | Scrapes and stores metrics |
+| **ClickHouse** | observability | Stores and indexes log data |
+| **Jaeger** | observability | Stores distributed traces; trace search and dependency graphs |
+| **Grafana** | observability | Unified dashboards — correlates traces ↔ logs ↔ metrics |
+| **ArgoCD** | argocd | GitOps reconciler for all stack components |
 
-## 🚀 Quick Start
+### Ingress URL map
+
+| Path | Service | Port |
+|---|---|---|
+| `/grafana` | Grafana | 80 |
+| `/prometheus` | Prometheus | 9090 |
+| `/jaeger` | Jaeger Query UI | 16686 |
+| `/clickhouse` | ClickHouse HTTP | 8123 |
+| `/traefik` | Traefik Dashboard | 9000 |
+| `/argocd` | ArgoCD Server | 80 |
+
+---
+
+## Quick Start
 
 ### Prerequisites
 
-- **Docker Desktop** with Kubernetes enabled
-- **kubectl** configured
-- **Helm** v3+
-- **PowerShell** (Windows) or **Bash** (Linux/Mac)
-
-### 1. Clone and Setup
+- **Podman** (rootless) with the user socket running — Docker is not used
+- `kubectl`
+- `helm` v3+
+- `kind`
 
 ```bash
-git clone <repository-url>
-cd k8s_observebility
+# Verify Podman socket is active
+systemctl --user enable --now podman.socket
+
+# Load env vars (or use direnv to auto-load)
+source .envrc
 ```
 
-### 2. Build Deployment Scripts
-
-```powershell
-# Windows PowerShell
-./build-scripts.ps1
-```
-
-### 3. Deploy Everything
-
-```powershell
-# Windows PowerShell
-.\bin\k8s-obs.exe quick-start
-```
-
-### 4. Access the UIs
-
-```powershell
-# Set up Traefik ingress for observability stack
-.\bin\k8s-obs.exe setup-ingress
-```
-
-**Access URLs:**
-- **Traefik Dashboard**: http://localhost:30080/traefik (admin/admin)
-- **Grafana**: http://localhost:30080/grafana (admin/admin123)
-- **Prometheus**: http://localhost:30080/prometheus
-- **Jaeger**: http://localhost:30080/jaeger
-- **ClickHouse**: http://localhost:30080/clickhouse
-- **ArgoCD**: http://localhost:30080/argocd (admin/admin)
-
-> **Note**: All services are accessible through Traefik Ingress Controller on port 30080 using path-based routing. No port-forwarding required!
-
-## 📊 Grafana Configuration
-
-### Auto-Provisioned Data Sources
-
-The Grafana deployment is configured to automatically provision:
-
-- **Prometheus**: Primary metrics data source
-  - URL: `http://prometheus-server.observability.svc.cluster.local:80`
-  - Default data source for dashboards
-
-### Auto-Provisioned Dashboards
-
-The following dashboards are automatically imported:
-
-- **Kubernetes Cluster Overview** (ID: 7249)
-- **Node Exporter** (ID: 1860) 
-- **Prometheus Overview** (ID: 3662)
-
-### Manual Data Source Configuration
-
-If you need to add additional data sources manually:
-
-1. **Access Grafana**: http://localhost:3000
-2. **Login**: admin / admin123
-3. **Go to**: Configuration (⚙️) → Data Sources
-4. **Click**: "Add data source"
-
-#### Adding Prometheus (if not auto-provisioned)
-
-1. Select **Prometheus**
-2. **URL**: `http://prometheus-server.observability.svc.cluster.local:80`
-3. **Access**: Server (default)
-4. **Save & Test**
-
-#### Adding ClickHouse (for logs)
-
-1. Install ClickHouse plugin first:
-   - Go to Configuration (⚙️) → Plugins
-   - Search for "ClickHouse"
-   - Install the plugin
-2. Add ClickHouse data source:
-   - **Type**: ClickHouse
-   - **URL**: `http://clickhouse.observability.svc.cluster.local:8123`
-   - **Database**: default
-   - **Username**: default
-   - **Password**: `clickhouse123` (get from secret)
-
-### Manual Dashboard Import
-
-To import additional dashboards:
-
-1. **Access Grafana**: http://localhost:3000
-2. **Go to**: Dashboards → Import
-3. **Choose method**:
-   - **Upload JSON**: Upload dashboard JSON file
-   - **Import from Grafana.com**: Enter dashboard ID
-   - **Paste JSON**: Paste dashboard configuration
-
-#### Popular Dashboard IDs
-
-- **Kubernetes Cluster**: 7249
-- **Node Exporter**: 1860
-- **Prometheus**: 3662
-- **Jaeger**: 13332
-- **OpenTelemetry Collector**: 13332
-
-#### Importing via Grafana.com
-
-1. Click **Import**
-2. Enter **Grafana.com Dashboard URL** or **Dashboard ID**
-3. Select **Data Source** (Prometheus for metrics)
-4. Click **Load**
-5. Review and click **Import**
-
-### Dashboard Configuration
-
-#### Creating Custom Dashboards
-
-1. **Go to**: Dashboards → New Dashboard
-2. **Add Panel**: Click "Add panel"
-3. **Query**: Use PromQL for Prometheus data
-4. **Visualization**: Choose chart type
-5. **Save**: Name and save dashboard
-
-#### Example PromQL Queries
-
-```promql
-# CPU Usage
-rate(container_cpu_usage_seconds_total{container!=""}[5m])
-
-# Memory Usage
-container_memory_usage_bytes{container!=""}
-
-# Pod Status
-kube_pod_status_phase
-
-# OpenTelemetry Collector Metrics
-otelcol_processor_batch_batch_send_size
-```
-
-## 📦 Components
-
-### Core Stack
-
-| Component | Purpose | Helm Chart | Version | Status |
-|-----------|---------|------------|---------|--------|
-| **Grafana** | Visualization & dashboards | `bitnami/grafana` | 12.0.8 | ✅ Working |
-| **Prometheus** | Metrics collection & alerting | `bitnami/prometheus` | 2.1.10 | ✅ Working |
-| **Jaeger** | Distributed tracing | `jaegertracing/jaeger` | 0.71.0 | ✅ Working |
-| **ClickHouse** | Log storage & querying | `bitnami/clickhouse` | 1.0.0 | ✅ Working |
-| **OpenTelemetry Collector** | Unified data collection | `open-telemetry/opentelemetry-collector` | 0.60.0 | ✅ Working |
-
-### Key Features
-
-- **🎯 Unified Data Collection**: OpenTelemetry Collector replaces kube-state-metrics and node-exporter
-- **🔍 In-Memory Jaeger**: Uses official Jaeger chart with in-memory storage (no Cassandra dependencies)
-- **📊 Optimized Prometheus**: Disabled redundant components since OpenTelemetry handles metrics collection
-- **🚀 Smart Port-Forwarding**: Separate port-forward management for ArgoCD and observability stack
-- **✅ Improved Error Reporting**: Enhanced port-forwarding with accurate success/failure reporting
-
-### Sample Applications
-
-- **Load Generator**: Simulates application traffic
-- **Sample App**: Basic application with telemetry instrumentation
-
-### ArgoCD Applications
-
-All components are deployed via separate ArgoCD applications in `argocd-apps/`:
-
-- `grafana-app.yaml` - Grafana visualization platform (with auto-provisioned data sources)
-- `prometheus-app.yaml` - Prometheus metrics collection (optimized for OpenTelemetry)
-- `jaeger-app.yaml` - Jaeger distributed tracing (in-memory storage)
-- `clickhouse-app.yaml` - ClickHouse log storage
-- `opentelemetry-collector-app.yaml` - Unified data collection
-
-### Data Flow
-
-1. **Applications** send telemetry data to OpenTelemetry Collector
-2. **OpenTelemetry Collector** processes and routes data:
-   - **Metrics** → Prometheus
-   - **Traces** → Jaeger
-   - **Logs** → ClickHouse
-3. **Grafana** visualizes all data sources
-
-## 🎮 Usage
-
-### PowerShell Commands
-
-```powershell
-# Quick setup
-.\bin\k8s-obs.exe quick-start
-
-# Individual commands
-.\bin\k8s-obs.exe setup-cluster      # Create Kind cluster
-.\bin\k8s-obs.exe deploy-argocd      # Deploy ArgoCD
-.\bin\k8s-obs.exe deploy-stack       # Deploy observability stack
-.\bin\k8s-obs.exe deploy-sample-apps # Deploy sample applications
-.\bin\k8s-obs.exe setup-ingress      # Set up Traefik ingress access
-.\bin\k8s-obs.exe status            # Check component status
-.\bin\k8s-obs.exe logs              # View component logs
-.\bin\k8s-obs.exe get-urls          # Get service URLs and credentials
-.\bin\k8s-obs.exe cleanup           # Remove applications
-.\bin\k8s-obs.exe clean-all         # Complete cleanup
-```
-
-### Ingress Access
-
-The project uses Traefik Ingress Controller for external access:
-
-- **Traefik Ingress**: Lightweight, modern ingress controller with dashboard
-- **Single Port Access**: All services accessible on port 30080
-- **Path-based Routing**: Each service accessible via path (e.g., /grafana, /prometheus)
-- **No Port Forwarding**: Eliminates the need for multiple kubectl port-forward commands
-- **Built-in Metrics**: Traefik provides its own metrics for monitoring
-
-### Monitoring Your Applications
-
-1. **Add OpenTelemetry SDK** to your applications
-2. **Configure OTLP endpoint**: `http://opentelemetry-collector.observability.svc.cluster.local:4317`
-3. **View traces** in Jaeger UI
-4. **View metrics** in Grafana
-5. **View logs** in ClickHouse (via Grafana)
-
-## 🔍 Troubleshooting
-
-### Common Issues
-
-1. **Ingress Access Not Working**
-   - Check if Traefik is running: `kubectl get pods -n traefik`
-   - Verify ingress resources: `kubectl get ingress -n observability`
-   - Ensure hosts file entries are added: `k8s-obs setup-ingress`
-   - Check if port 30080 is accessible: `curl http://localhost:30080`
-   - Verify path-based routing: `curl http://localhost:30080/grafana` should return Grafana
-
-2. **Jaeger "Progressing" Status**
-   - This is normal for in-memory Jaeger deployments
-   - The application is working correctly despite the status
-
-3. **Prometheus "Progressing" Status**
-   - Expected when kube-state-metrics and node-exporter are disabled
-   - OpenTelemetry Collector provides the same functionality
-   - Application is working correctly
-
-4. **ClickHouse Connection Issues**
-   - Verify ClickHouse pods are running
-   - Check service endpoints: `kubectl get svc -n observability`
-   - Default password: `clickhouse123`
-
-5. **OpenTelemetry Collector Issues**
-   - Check collector logs: `kubectl logs -n observability -l app.kubernetes.io/name=opentelemetry-collector`
-
-6. **Grafana Data Sources Not Showing**
-   - Check if auto-provisioning worked: Configuration → Data Sources
-   - Verify Prometheus service is accessible
-   - Check Grafana logs for provisioning errors
-
-7. **Helm Schema Validation Errors**
-   - Fixed: OpenTelemetry service.ports configuration
-   - Fixed: Prometheus extraScrapeConfigs array format
-
-### Useful Commands
+### 1. Create the Kind cluster (via Podman)
 
 ```bash
-# Check all components
-kubectl get pods -n observability
+kind create cluster --name observability-cluster --config kind-config.yaml
+# Creates: 1 control-plane + 3 workers
+```
 
-# Check ArgoCD applications
+### 2. Deploy the stack
+
+```bash
+# Install ArgoCD
+kubectl create namespace argocd
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+kubectl wait --for=condition=Available deployment/argocd-server -n argocd --timeout=120s
+
+# Deploy all observability apps via ArgoCD
+kubectl apply -k argocd-apps/
+```
+
+### 3. Access the UIs
+
+| UI | URL | Credentials |
+|---|---|---|
+| Grafana | http://localhost:30080/grafana | admin / admin123 |
+| Prometheus | http://localhost:30080/prometheus | — |
+| Jaeger | http://localhost:30080/jaeger | — |
+| ClickHouse | http://localhost:30080/clickhouse | default / clickhouse123 |
+| Traefik | http://localhost:30080/traefik | admin / admin |
+| ArgoCD | http://localhost:30080/argocd | admin / admin |
+
+---
+
+## Setup Guide (Manual Steps)
+
+### Step 1 — Install cert-manager
+
+Required by the OTel Operator for admission webhook TLS:
+
+```bash
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.20.2/cert-manager.yaml
+kubectl wait --for=condition=Ready pods --all -n cert-manager --timeout=120s
+```
+
+### Step 2 — Install the OTel Operator
+
+```bash
+helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+helm repo update
+
+helm install opentelemetry-operator open-telemetry/opentelemetry-operator \
+  --namespace opentelemetry-operator-system \
+  --create-namespace \
+  --set "manager.collectorImage.repository=otel/opentelemetry-collector-contrib"
+```
+
+### Step 3 — Install Traefik
+
+```bash
+helm repo add traefik https://traefik.github.io/charts
+helm repo update
+
+helm install traefik traefik/traefik \
+  --namespace traefik \
+  --create-namespace \
+  --set ports.web.exposedPort=80 \
+  --set ports.websecure.exposedPort=443
+```
+
+### Step 4 — Install observability backends
+
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+
+# Prometheus + Grafana
+helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+  --namespace monitoring \
+  --create-namespace \
+  --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
+  --set "grafana.grafana\.ini.server.serve_from_sub_path=true" \
+  --set "grafana.grafana\.ini.server.root_url=http://localhost:30080/grafana"
+
+# ClickHouse (log store)
+helm install clickhouse bitnami/clickhouse \
+  --namespace monitoring \
+  --set auth.password=clickhouse123
+
+# Jaeger Operator
+kubectl create namespace observability
+kubectl apply -n observability \
+  -f https://github.com/jaegertracing/jaeger-operator/releases/download/v1.65.0/jaeger-operator.yaml
+```
+
+### Step 5 — Deploy Jaeger instance
+
+```yaml
+# jaeger.yaml
+apiVersion: jaegertracing.io/v1
+kind: Jaeger
+metadata:
+  name: jaeger
+  namespace: monitoring
+spec:
+  strategy: allInOne
+  allInOne:
+    options:
+      query:
+        base-path: /jaeger
+  storage:
+    type: memory
+    options:
+      memory:
+        max-traces: 100000
+```
+
+```bash
+kubectl apply -f jaeger.yaml
+```
+
+### Step 6 — Create the IngressRoute
+
+```yaml
+# observability-ingressroute.yaml
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: observability-ingressroute
+  namespace: monitoring
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: PathPrefix(`/grafana`)
+      kind: Rule
+      services:
+        - name: kube-prometheus-stack-grafana
+          port: 80
+    - match: PathPrefix(`/prometheus`)
+      kind: Rule
+      services:
+        - name: kube-prometheus-stack-prometheus
+          port: 9090
+    - match: PathPrefix(`/jaeger`)
+      kind: Rule
+      services:
+        - name: jaeger-query
+          port: 16686
+```
+
+### Step 7 — Deploy the Metrics + Traces Collector
+
+```yaml
+# otel-collector.yaml
+apiVersion: opentelemetry.io/v1alpha1
+kind: OpenTelemetryCollector
+metadata:
+  name: otel-collector
+  namespace: monitoring
+spec:
+  mode: deployment
+  config: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      batch:
+        timeout: 10s
+      memory_limiter:
+        limit_mib: 400
+        spike_limit_mib: 100
+        check_interval: 5s
+
+    exporters:
+      prometheus:
+        endpoint: "0.0.0.0:8889"
+      otlp/jaeger:
+        endpoint: jaeger-collector.monitoring.svc.cluster.local:4317
+        tls:
+          insecure: true
+      debug:
+        verbosity: basic
+
+    service:
+      pipelines:
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [prometheus, debug]
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlp/jaeger, debug]
+```
+
+### Step 8 — Deploy the Log Collector (DaemonSet)
+
+Apply RBAC first:
+
+```yaml
+# otel-log-collector-rbac.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: otel-log-collector
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: otel-log-collector
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "namespaces", "nodes"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: otel-log-collector
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: otel-log-collector
+subjects:
+  - kind: ServiceAccount
+    name: otel-log-collector
+    namespace: monitoring
+```
+
+Then the DaemonSet collector (ships logs to ClickHouse):
+
+```yaml
+# otel-log-collector.yaml
+apiVersion: opentelemetry.io/v1alpha1
+kind: OpenTelemetryCollector
+metadata:
+  name: otel-log-collector
+  namespace: monitoring
+spec:
+  mode: daemonset
+  serviceAccount: otel-log-collector
+  volumeMounts:
+    - name: varlogpods
+      mountPath: /var/log/pods
+      readOnly: true
+  volumes:
+    - name: varlogpods
+      hostPath:
+        path: /var/log/pods
+  config: |
+    receivers:
+      filelog:
+        include:
+          - /var/log/pods/*/*/*.log
+        start_at: beginning
+        include_file_path: true
+        include_file_name: false
+        operators:
+          - type: container
+            id: container-parser
+
+    processors:
+      batch:
+        timeout: 5s
+      k8sattributes:
+        auth_type: serviceAccount
+        passthrough: false
+        extract:
+          metadata:
+            - k8s.namespace.name
+            - k8s.pod.name
+            - k8s.pod.uid
+            - k8s.container.name
+            - k8s.node.name
+        pod_association:
+          - sources:
+              - from: resource_attribute
+                name: k8s.pod.name
+              - from: resource_attribute
+                name: k8s.namespace.name
+
+    exporters:
+      clickhouse:
+        endpoint: tcp://clickhouse.monitoring.svc.cluster.local:9000
+        database: default
+        username: default
+        password: clickhouse123
+        logs_table_name: otel_logs
+        ttl_days: 3
+
+    service:
+      pipelines:
+        logs:
+          receivers: [filelog]
+          processors: [k8sattributes, batch]
+          exporters: [clickhouse]
+```
+
+### Step 9 — Instrument Your Application
+
+**Auto-instrumentation** (zero code change, requires OTel Operator):
+
+```yaml
+# instrumentation.yaml
+apiVersion: opentelemetry.io/v1alpha1
+kind: Instrumentation
+metadata:
+  name: my-instrumentation
+  namespace: default
+spec:
+  exporter:
+    endpoint: http://otel-collector-collector.monitoring.svc.cluster.local:4318
+  propagators:
+    - tracecontext
+    - baggage
+  sampler:
+    type: parentbased_traceidratio
+    argument: "1"
+  python:
+    image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-python:latest
+  java:
+    image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:latest
+  nodejs:
+    image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-nodejs:latest
+```
+
+Then annotate your Deployment:
+
+```yaml
+annotations:
+  instrumentation.opentelemetry.io/inject-python: "true"
+```
+
+**Manual SDK** — set via environment variables:
+
+```yaml
+env:
+  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    value: "http://otel-collector-collector.monitoring.svc.cluster.local:4317"
+  - name: OTEL_SERVICE_NAME
+    value: "my-service"
+```
+
+---
+
+## Grafana Setup
+
+### Default credentials
+
+```bash
+# Grafana admin password
+kubectl get secret kube-prometheus-stack-grafana -n monitoring \
+  -o jsonpath="{.data.admin-password}" | base64 --decode
+```
+
+### Add ClickHouse data source
+
+1. **Connections → Plugins** → search "ClickHouse" → install
+2. **Connections → Data Sources → Add → ClickHouse**
+3. URL: `http://clickhouse.monitoring.svc.cluster.local:8123`
+4. Database: `default`, Username: `default`, Password: `clickhouse123`
+
+### Add Jaeger data source
+
+1. **Connections → Data Sources → Add → Jaeger**
+2. URL: `http://jaeger-query.monitoring.svc.cluster.local:16686`
+
+### Import dashboards
+
+| Dashboard | ID | Data source |
+|---|---|---|
+| OTel Collector | 15983 | Prometheus |
+| Kubernetes Cluster | 7249 | Prometheus |
+| Node Exporter | 1860 | Prometheus |
+
+---
+
+## Troubleshooting
+
+| Symptom | Likely Cause | Fix |
+|---|---|---|
+| `/grafana` returns 404 | IngressRoute not picked up | `kubectl describe ingressroute -n monitoring`; check Traefik logs |
+| Grafana CSS/JS broken | `serve_from_sub_path` not set | Helm upgrade with `serve_from_sub_path=true` and correct `root_url` |
+| Jaeger UI redirects to `/` | `base-path` not set | Check `spec.allInOne.options.query.base-path: /jaeger` |
+| Collector `CrashLoopBackOff` | Bad config YAML | `kubectl logs <pod> -n monitoring` |
+| Prometheus target DOWN | ServiceMonitor label mismatch | Check `release:` label matches Helm release name |
+| No logs in ClickHouse | DaemonSet can't reach CH | Check collector logs; verify ClickHouse pod running |
+| Logs missing K8s labels | k8sattributes RBAC missing | Verify `ClusterRoleBinding` is applied |
+| No traces in Jaeger | Collector can't reach Jaeger | Verify `jaeger-collector` service; check `insecure: true` |
+| Auto-instrumentation not injecting | Annotation typo | `kubectl describe pod` — check mutating webhook events |
+| cert-manager webhook timeout | cert-manager not ready | `kubectl get pods -n cert-manager` and wait |
+
+### Useful commands
+
+```bash
+kubectl get pods --all-namespaces
 kubectl get applications -n argocd
-
-# View component logs
-kubectl logs -n observability <pod-name>
-
-# Check services
-kubectl get svc -n observability
-
-# Check Traefik ingress
-kubectl get pods -n traefik
-kubectl get ingress -n observability
-
-# Get Grafana password
-kubectl get secret -n observability grafana-admin -o jsonpath='{.data.GF_SECURITY_ADMIN_PASSWORD}' | base64 -d
-
-# Get ClickHouse password
-kubectl get secret -n observability clickhouse -o jsonpath='{.data.admin-password}' | base64 -d
+kubectl logs -n observability deployment/opentelemetry-collector
+kubectl get svc -n monitoring
+kubectl get secret kube-prometheus-stack-grafana -n monitoring \
+  -o jsonpath="{.data.admin-password}" | base64 --decode
 ```
 
-## 🏭 Production Considerations
+---
 
-### Current Setup (Development/POC)
-- Single-node ClickHouse cluster
-- Local storage (not distributed)
-- Basic resource limits
-- No high availability
-- In-memory Jaeger storage
+## Resource Requirements
 
-### Production Recommendations
-- **Storage**: Use distributed storage (e.g., EBS, Azure Disk)
-- **High Availability**: Deploy multiple replicas
-- **Security**: Enable TLS, RBAC, network policies
-- **Monitoring**: Add monitoring for the observability stack itself
-- **Backup**: Implement backup strategies for ClickHouse data
-- **Jaeger Storage**: Use persistent storage (Elasticsearch/Cassandra) for production
+### Minimum
 
-## 📊 Resource Requirements
+- CPU: 4 cores
+- Memory: 8 GB RAM
+- Storage: 20 GB
 
-### Minimum Requirements
-- **CPU**: 4 cores
-- **Memory**: 8GB RAM
-- **Storage**: 20GB available space
+### Per component
 
-### Component Resources
-- **Grafana**: 512MB RAM, 500m CPU
-- **Prometheus**: 2GB RAM, 1 CPU core
-- **Jaeger**: 512MB RAM, 500m CPU
-- **ClickHouse**: 1GB RAM, 1 CPU core
-- **OpenTelemetry Collector**: 512MB RAM, 500m CPU
+| Component | Memory | CPU |
+|---|---|---|
+| Grafana | 512 MB | 500m |
+| Prometheus | 2 GB | 1 core |
+| Jaeger | 512 MB | 500m |
+| ClickHouse | 1 GB | 1 core |
+| OTel Collector | 512 MB | 500m |
 
-## 🤝 Contributing
+---
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+## Production Considerations
 
-## 📄 License
+This stack is a **development/POC** setup. For production:
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🙏 Acknowledgments
-
-- **Bitnami** for production-ready Helm charts
-- **Jaeger** for distributed tracing and official Helm chart
-- **Prometheus Community** for the monitoring stack
-- **ClickHouse** for high-performance log storage
-- **OpenTelemetry** for unified observability
-- **ArgoCD** for GitOps deployment
-
-## 🛠️ Building Deployment Binaries
-
-All deployment binaries (such as `k8s-obs.exe`, `setup_kind_cluster.exe`, etc.) are built using the provided PowerShell script:
-
-```powershell
-./build-scripts.ps1
-```
-
-- This script uses Docker to cross-compile the Rust binaries for Windows.
-- The `bin/` directory is used for all build outputs and is not tracked in version control.
-- The build process **requires** `Dockerfile.build` in the repository, which defines the `rust-builder` image used by the script. 
+- **Jaeger storage**: Switch from in-memory to production strategy backed by ClickHouse or Cassandra
+- **ClickHouse**: Deploy as a distributed cluster; enable replication
+- **Prometheus**: Add persistent storage (PVC with `storageSpec`)
+- **Security**: Enable TLS, RBAC, and network policies throughout
+- **High availability**: Multiple replicas for all components
+- **Auto-instrumentation images**: Pin to specific versions (not `:latest`)
