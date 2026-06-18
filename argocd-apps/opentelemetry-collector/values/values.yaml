@@ -166,7 +166,7 @@ config:
       metric_statements:
         - context: datapoint
           statements:
-            - set(attributes["pod"], resource.attributes["pod"]) where resource.attributes["pod"] != nil
+            - set(attributes["pod"], resource.attributes["k8s.pod.name"]) where resource.attributes["k8s.pod.name"] != nil
             - set(attributes["host"], ExtractPatterns(attributes["router"], ".*-(?P<host>[^-]+)-[^-]+@kubernetes$")["host"]) where IsMatch(attributes["router"], ".*@kubernetes$")
 
   exporters:
