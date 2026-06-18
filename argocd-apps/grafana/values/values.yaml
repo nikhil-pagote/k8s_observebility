@@ -43,8 +43,8 @@ datasources:
 
 dashboards:
   default:
-    kube-state-metrics:
-      gnetId: 16520
+    k8s-dashboard:
+      gnetId: 15661
       revision: 1
       datasource: VictoriaMetrics
     traefik:
