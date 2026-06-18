@@ -1,0 +1,24 @@
+server:
+  fullnameOverride: victoria-metrics
+
+  retentionPeriod: 15d
+
+  persistentVolume:
+    enabled: true
+    size: 20Gi
+
+  resources:
+    limits:
+      memory: 1Gi
+      cpu: 1000m
+    requests:
+      memory: 512Mi
+      cpu: 250m
+
+  # Disable built-in scraping — OTel pushes via remote_write
+  scrape:
+    enabled: false
+
+  service:
+    type: ClusterIP
+    servicePort: 8428

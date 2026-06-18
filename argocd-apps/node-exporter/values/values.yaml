@@ -1,0 +1,17 @@
+fullnameOverride: node-exporter
+
+resources:
+  limits:
+    memory: 128Mi
+    cpu: 250m
+  requests:
+    memory: 64Mi
+    cpu: 100m
+
+service:
+  type: ClusterIP
+  port: 9100
+
+# Expose port as named so OTel can discover via kubernetes_sd endpoints
+serviceAnnotations:
+  prometheus.io/scrape: "false"

@@ -20,6 +20,7 @@ helm repo add grafana https://grafana.github.io/helm-charts
 helm repo add jaegertracing https://jaegertracing.github.io/helm-charts
 helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
 helm repo add traefik https://traefik.github.io/charts
+helm repo add victoriametrics https://victoriametrics.github.io/helm-charts/
 helm repo update
 helm repo list
 ```
@@ -29,15 +30,17 @@ helm repo list
 Pull all charts at their pinned versions into each app's `chart/` directory.
 
 ```bash
-helm pull traefik/traefik                        --version 41.0.0   --untar --untardir argocd-apps/traefik/
-helm pull prometheus-community/prometheus         --version 29.12.0  --untar --untardir argocd-apps/prometheus/
-helm pull grafana/grafana                        --version 10.5.15  --untar --untardir argocd-apps/grafana/
-helm pull jaegertracing/jaeger                   --version 4.11.1   --untar --untardir argocd-apps/jaeger/
-helm pull grafana/loki                           --version 6.55.0   --untar --untardir argocd-apps/loki/
-helm pull open-telemetry/opentelemetry-collector --version 0.158.2  --untar --untardir argocd-apps/opentelemetry-collector/
+helm pull traefik/traefik                                    --version 41.0.0   --untar --untardir argocd-apps/traefik/
+helm pull grafana/grafana                                    --version 10.5.15  --untar --untardir argocd-apps/grafana/
+helm pull victoriametrics/victoria-metrics-single            --version 0.40.1   --untar --untardir argocd-apps/victoria-metrics/
+helm pull prometheus-community/prometheus-node-exporter      --version 4.55.0   --untar --untardir argocd-apps/node-exporter/
+helm pull prometheus-community/kube-state-metrics            --version 7.5.1    --untar --untardir argocd-apps/kube-state-metrics/
+helm pull jaegertracing/jaeger                               --version 4.11.1   --untar --untardir argocd-apps/jaeger/
+helm pull grafana/loki                                       --version 6.55.0   --untar --untardir argocd-apps/loki/
+helm pull open-telemetry/opentelemetry-collector             --version 0.158.2  --untar --untardir argocd-apps/opentelemetry-collector/
 
 echo "Charts pulled:"
-for app in traefik prometheus grafana jaeger loki opentelemetry-collector; do
+for app in traefik grafana victoria-metrics node-exporter kube-state-metrics jaeger loki opentelemetry-collector; do
   echo "  $app/chart: $(ls argocd-apps/$app/chart/ 2>/dev/null | head -1 || echo 'empty')"
 done
 ```
@@ -51,12 +54,14 @@ Refresh repo index and re-pull all charts (run when upgrading versions):
 ```bash
 helm repo update
 
-helm pull traefik/traefik                        --version 41.0.0   --untar --untardir argocd-apps/traefik/
-helm pull prometheus-community/prometheus         --version 29.12.0  --untar --untardir argocd-apps/prometheus/
-helm pull grafana/grafana                        --version 10.5.15  --untar --untardir argocd-apps/grafana/
-helm pull jaegertracing/jaeger                   --version 4.11.1   --untar --untardir argocd-apps/jaeger/
-helm pull grafana/loki                           --version 6.55.0   --untar --untardir argocd-apps/loki/
-helm pull open-telemetry/opentelemetry-collector --version 0.158.2  --untar --untardir argocd-apps/opentelemetry-collector/
+helm pull traefik/traefik                                    --version 41.0.0   --untar --untardir argocd-apps/traefik/
+helm pull grafana/grafana                                    --version 10.5.15  --untar --untardir argocd-apps/grafana/
+helm pull victoriametrics/victoria-metrics-single            --version 0.40.1   --untar --untardir argocd-apps/victoria-metrics/
+helm pull prometheus-community/prometheus-node-exporter      --version 4.55.0   --untar --untardir argocd-apps/node-exporter/
+helm pull prometheus-community/kube-state-metrics            --version 7.5.1    --untar --untardir argocd-apps/kube-state-metrics/
+helm pull jaegertracing/jaeger                               --version 4.11.1   --untar --untardir argocd-apps/jaeger/
+helm pull grafana/loki                                       --version 6.55.0   --untar --untardir argocd-apps/loki/
+helm pull open-telemetry/opentelemetry-collector             --version 0.158.2  --untar --untardir argocd-apps/opentelemetry-collector/
 
 echo "Charts updated."
 ```

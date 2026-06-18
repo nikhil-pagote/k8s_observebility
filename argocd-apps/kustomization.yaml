@@ -8,7 +8,9 @@ metadata:
 resources:
   - traefik/app.yaml
   - grafana/app.yaml
-  - prometheus/app.yaml
+  - victoria-metrics/app.yaml
+  - node-exporter/app.yaml
+  - kube-state-metrics/app.yaml
   - jaeger/app.yaml
   - loki/app.yaml
   - opentelemetry-collector/app.yaml

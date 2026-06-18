@@ -1,0 +1,16 @@
+fullnameOverride: kube-state-metrics
+
+resources:
+  limits:
+    memory: 256Mi
+    cpu: 250m
+  requests:
+    memory: 128Mi
+    cpu: 100m
+
+service:
+  type: ClusterIP
+  port: 8080
+
+# Disable prometheus annotation — OTel uses static config to scrape
+prometheusScrape: false

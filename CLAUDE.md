@@ -71,15 +71,16 @@ pre-commit install
 |---|---|
 | `traefik` | Traefik ingress controller (sync-wave 0 — deployed first) |
 | `argocd` | ArgoCD server + application controller |
-| `observability` | Prometheus, Grafana, Jaeger, Loki, OTel Collector |
+| `observability` | VictoriaMetrics, Grafana, Jaeger, Loki, OTel Collector, node-exporter, kube-state-metrics |
 
-**Data flow:** Apps → OTel Collector (OTLP :4317) → Prometheus (metrics) + Jaeger (traces) + Loki (logs) → Grafana
+**Data flow:** Apps → OTel Collector (OTLP :4317) → VictoriaMetrics (metrics, via remote_write) + Jaeger (traces) + Loki (logs) → Grafana
 
 ## Key constraints
 
 - ArgoCD sync-wave ordering: Traefik must be running before other apps create IngressRoutes.
 - Grafana sub-path routing requires `serve_from_sub_path=true` and matching `root_url` in Helm values.
 - **Log store is Loki** — the guide `otel operator for k8s.md` references Elasticsearch/ClickHouse, but this project uses Loki (single-binary, filesystem storage). Logs are received via OTLP (not filelog DaemonSet).
+- **Metrics backend is VictoriaMetrics** — Prometheus is not deployed. OTel Collector scrapes infra metrics (node-exporter, kube-state-metrics, cAdvisor) and receives OTLP from apps, then pushes everything to VictoriaMetrics via `prometheusremotewrite`. Grafana uses VictoriaMetrics as a Prometheus-compatible datasource.
 - OTel Collector in-cluster endpoint: `http://opentelemetry-collector.observability.svc.cluster.local:4317`
 
 ## Project skills
@@ -90,7 +91,7 @@ Skills in `.claude/skills/` (invoke via the Skill tool):
 |---|---|
 | `validate` | `kubectl --dry-run=client` on all manifests |
 | `stack-status` | Component health table across all namespaces |
-| `verify-otel` | End-to-end pillar check (metrics → Prometheus, traces → Jaeger, logs → Loki) |
+| `verify-otel` | End-to-end pillar check (metrics → VictoriaMetrics, traces → Jaeger, logs → Loki) |
 | `deploy` | Guided deployment with pre-flight checks |
 | `helm` | Add repos, pull charts locally into `argocd-apps/<app>/chart/` |
 | `kind-cluster` | Start, stop, restart, or check status of the Kind cluster |

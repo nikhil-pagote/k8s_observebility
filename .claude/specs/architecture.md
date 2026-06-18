@@ -8,25 +8,28 @@ A local Kubernetes observability POC using **OpenTelemetry** as the unified coll
 
 | Pillar | Tool | Role |
 |---|---|---|
-| Metrics | Prometheus + Grafana | Scrape, store, and visualize metrics |
+| Metrics | VictoriaMetrics + Grafana | Store and visualize metrics (OTel pushes via remote_write) |
 | Traces | Jaeger | Distributed trace storage and UI |
 | Logs | Loki | Log aggregation and querying |
 
 ## Data Flow
 
 ```
-Applications (instrumented)
-        │
-        ▼ OTLP gRPC :4317
-OTel Collector — Deployment
-        │
-   ┌────┴──────┐
-   ▼           ▼           ▼
-Prometheus  Jaeger       Loki
-   │           │           │
-   └─────┬─────┘           │
-         ▼                 │
-      Grafana ◄────────────┘
+node-exporter  ──────────────────────────────┐
+kube-state-metrics ──────────────────────────┤ OTel prometheus receiver (pull)
+cAdvisor (kubelet) ──────────────────────────┤
+annotated pods/endpoints ────────────────────┘
+                                             │
+App (OTLP :4317/4318) ───────────────────────┤ OTel Collector
+                                             │
+                              ┌──────────────┼──────────────┐
+                              ▼              ▼              ▼
+                      VictoriaMetrics     Jaeger          Loki
+                      (remote_write)    (OTLP traces)  (OTLP logs)
+                              │              │              │
+                              └──────────────┴──────────────┘
+                                             ▼
+                                          Grafana
 ```
 
 ## Component Map
@@ -35,11 +38,13 @@ Prometheus  Jaeger       Loki
 |---|---|---|---|
 | Traefik | traefik | traefik/traefik | Ingress, NodePort 30080/30443 |
 | ArgoCD | argocd | argo/argo-cd | GitOps reconciler |
-| Prometheus | observability | prometheus-community/prometheus | Metrics store |
+| VictoriaMetrics | observability | victoriametrics/victoria-metrics-single | Metrics storage backend (receives remote_write) |
 | Grafana | observability | grafana/grafana | Unified visualization |
 | Jaeger | observability | jaegertracing/jaeger | Trace store (in-memory for POC) |
 | Loki | observability | grafana/loki | Log store (single-binary, filesystem) |
-| OTel Collector | observability | open-telemetry/opentelemetry-collector | OTLP receiver, fan-out to all backends |
+| OTel Collector | observability | open-telemetry/opentelemetry-collector | Single ingestion layer — scrapes infra, receives OTLP from apps |
+| node-exporter | observability | prometheus-community/prometheus-node-exporter | Host metrics (CPU, mem, disk, network) |
+| kube-state-metrics | observability | prometheus-community/kube-state-metrics | Kubernetes object metrics |
 
 ## Ingress Routing
 
@@ -80,13 +85,13 @@ Not used. The stack runs a plain `opentelemetry-collector-contrib` Deployment (n
 
 Sync-wave annotation controls order:
 1. Wave 0: Traefik (must be first — other apps depend on ingress)
-2. Wave 1+: Prometheus, Grafana, Jaeger, Loki, OTel Collector
+2. Wave 1+: VictoriaMetrics, Grafana, Jaeger, Loki, OTel Collector, node-exporter, kube-state-metrics
 
 ## Grafana Data Sources
 
 Auto-provisioned via Grafana Helm values:
-- Prometheus: `http://prometheus-server.observability.svc.cluster.local:80`
+- VictoriaMetrics (as Prometheus type): `http://victoria-metrics-server.observability.svc.cluster.local:8428`
 - Loki: `http://loki.observability.svc.cluster.local:3100`
 
-Jaeger traces are queried via Grafana's Jaeger data source (manual or provisioned separately):
+Jaeger traces are queried via Grafana's Jaeger data source (add manually):
 - Jaeger: `http://jaeger.observability.svc.cluster.local:16686`

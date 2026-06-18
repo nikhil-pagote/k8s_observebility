@@ -32,7 +32,7 @@ kind get clusters | grep -q observability-cluster \
 
 # Local charts must be present
 missing=()
-for app in traefik prometheus grafana jaeger loki opentelemetry-collector; do
+for app in traefik grafana victoria-metrics node-exporter kube-state-metrics jaeger loki opentelemetry-collector; do
   [ -f "argocd-apps/$app/chart/Chart.yaml" ] || missing+=("$app")
 done
 [ ${#missing[@]} -eq 0 ] \
@@ -99,7 +99,7 @@ ArgoCD will now deploy all apps from the local `chart/` directories using `value
 
 Sync order (controlled by `argocd.argoproj.io/sync-wave`):
 - Wave 0: Traefik
-- Wave 1: Prometheus, Grafana, Jaeger, Loki, OTel Collector
+- Wave 1: VictoriaMetrics, Grafana, node-exporter, kube-state-metrics, Jaeger, Loki, OTel Collector
 
 ## Step 4 — Monitor deployment
 
@@ -113,7 +113,6 @@ kubectl get pods -n traefik -w
 
 # Verify ingress once Traefik is Ready
 curl -sI http://localhost:30080/grafana | head -1
-curl -sI http://localhost:30080/prometheus | head -1
 curl -sI http://localhost:30080/jaeger | head -1
 ```
 

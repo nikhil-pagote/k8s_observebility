@@ -39,10 +39,12 @@ Report as a table:
 | Kind cluster | — | Ready / Error | node count |
 | ArgoCD | argocd | Synced / OutOfSync | |
 | Traefik | traefik | Running / Error | NodePort 30080 |
-| Prometheus | observability | Running / Error | |
+| VictoriaMetrics | observability | Running / Error | metrics backend |
 | Grafana | observability | Running / Error | |
 | Jaeger | observability | Running / Error | |
 | Loki | observability | Running / Error | |
-| OTel Collector | observability | Running / Error | |
+| OTel Collector | observability | Running / Error | single ingestion layer |
+| node-exporter | observability | Running / Error | DaemonSet — one per node |
+| kube-state-metrics | observability | Running / Error | |
 
 List any pods in CrashLoopBackOff, Pending, or Error state with a brief log snippet.

@@ -22,9 +22,9 @@ datasources:
   datasources.yaml:
     apiVersion: 1
     datasources:
-      - name: Prometheus
+      - name: VictoriaMetrics
         type: prometheus
-        url: http://prometheus-server.observability.svc.cluster.local:80/prometheus
+        url: http://victoria-metrics-server.observability.svc.cluster.local:8428
         access: proxy
         isDefault: true
         editable: true
@@ -43,15 +43,15 @@ dashboards:
     kubernetes-cluster:
       gnetId: 7249
       revision: 1
-      datasource: Prometheus
+      datasource: VictoriaMetrics
     node-exporter:
       gnetId: 1860
       revision: 22
-      datasource: Prometheus
+      datasource: VictoriaMetrics
     prometheus:
       gnetId: 3662
       revision: 1
-      datasource: Prometheus
+      datasource: VictoriaMetrics
 
 dashboardProviders:
   dashboardproviders.yaml:

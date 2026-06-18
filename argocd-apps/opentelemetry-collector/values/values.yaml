@@ -48,15 +48,8 @@ config:
               - targets: ['prometheus-kube-state-metrics.observability.svc.cluster.local:8080']
 
           - job_name: node-exporter
-            kubernetes_sd_configs:
-              - role: endpoints
-            relabel_configs:
-              - source_labels: [__meta_kubernetes_service_name]
-                action: keep
-                regex: prometheus-prometheus-node-exporter
-              - source_labels: [__meta_kubernetes_namespace]
-                action: keep
-                regex: observability
+            static_configs:
+              - targets: ['node-exporter.observability.svc.cluster.local:9100']
 
           - job_name: kubernetes-cadvisor
             kubernetes_sd_configs:
@@ -140,12 +133,10 @@ config:
           action: upsert
 
   exporters:
-    prometheus:
-      endpoint: "0.0.0.0:9464"
-      namespace: "observability"
-      send_timestamps: true
-      metric_expiration: 180m
-      enable_open_metrics: true
+    prometheusremotewrite:
+      endpoint: "http://victoria-metrics-server.observability.svc.cluster.local:8428/api/v1/write"
+      tls:
+        insecure: true
     debug:
       verbosity: detailed
     otlp/jaeger:
@@ -166,7 +157,7 @@ config:
       metrics:
         receivers: [otlp, prometheus]
         processors: [batch, memory_limiter, resource]
-        exporters: [prometheus, debug]
+        exporters: [prometheusremotewrite, debug]
       logs:
         receivers: [otlp]
         processors: [batch, memory_limiter, resource]

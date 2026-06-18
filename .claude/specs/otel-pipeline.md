@@ -19,18 +19,19 @@ Processors:
   resource: k8s.cluster.name=observability-cluster
 
 Exporters:
-  prometheus: 0.0.0.0:9464       → scraped by Prometheus
+  prometheusremotewrite: http://victoria-metrics-server.observability.svc.cluster.local:8428/api/v1/write
   otlp/jaeger: jaeger-collector.observability.svc.cluster.local:14250
   otlphttp/loki: http://loki.observability.svc.cluster.local:3100/otlp
   debug: verbosity=detailed
 
 Pipelines:
-  metrics: [otlp, prometheus] → [batch, memory_limiter, resource] → [prometheus, debug]
+  metrics: [otlp, prometheus] → [batch, memory_limiter, resource] → [prometheusremotewrite, debug]
   traces:  [otlp]             → [batch, memory_limiter, resource] → [otlp/jaeger, debug]
   logs:    [otlp]             → [batch, memory_limiter, resource] → [otlphttp/loki, debug]
 ```
 
-> Image: `otel/opentelemetry-collector-contrib` (contrib required for otlphttp/loki and prometheus receiver).
+> Image: `otel/opentelemetry-collector-contrib` (contrib required for prometheusremotewrite, otlphttp/loki, and prometheus receiver).
+> OTel pushes metrics to VictoriaMetrics via remote_write — VictoriaMetrics does not scrape anything.
 
 ## ServiceMonitor
 
