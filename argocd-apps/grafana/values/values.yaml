@@ -26,6 +26,7 @@ datasources:
     apiVersion: 1
     datasources:
       - name: VictoriaMetrics
+        uid: victoriametrics
         type: prometheus
         url: http://victoria-metrics.observability.svc.cluster.local:8428
         access: proxy

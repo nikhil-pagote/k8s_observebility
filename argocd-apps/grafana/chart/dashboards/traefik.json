@@ -2202,9 +2202,9 @@
     "list": [
       {
         "current": {
-          "text": "",
-          "value": "VictoriaMetrics",
-          "selected": true
+          "selected": true,
+          "text": "VictoriaMetrics",
+          "value": "victoriametrics"
         },
         "label": "datasource",
         "name": "datasource",
