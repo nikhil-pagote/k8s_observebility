@@ -22,3 +22,6 @@ server:
   service:
     type: ClusterIP
     servicePort: 8428
+    # Override chart default of "None" — a routable ClusterIP is required
+    # for OTel prometheusremotewrite and Grafana to reach VictoriaMetrics
+    clusterIP: ""
