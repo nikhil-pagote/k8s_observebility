@@ -71,7 +71,7 @@ pre-commit install
 |---|---|
 | `traefik` | Traefik ingress controller (sync-wave 0 — deployed first) |
 | `argocd` | ArgoCD server + application controller |
-| `observability` | VictoriaMetrics, Grafana, Jaeger, Loki, OTel Collector, node-exporter, kube-state-metrics |
+| `observability` | VictoriaMetrics, Grafana, Jaeger, Loki, OTel Collector, node-exporter, kube-state-metrics, Pushgateway |
 
 **Data flow:** Apps → OTel Collector (OTLP :4317) → VictoriaMetrics (metrics, via remote_write) + Jaeger (traces) + Loki (logs) → Grafana
 

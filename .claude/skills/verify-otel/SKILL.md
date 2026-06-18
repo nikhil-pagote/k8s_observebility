@@ -1,5 +1,5 @@
 ---
-description: Verify all three OTel pillars (metrics → Prometheus, traces → Jaeger, logs → Loki) are flowing end-to-end
+description: Verify all three OTel pillars (metrics → VictoriaMetrics, traces → Jaeger, logs → Loki) are flowing end-to-end
 allowed-tools:
   - Bash
 ---
@@ -17,26 +17,25 @@ kubectl logs -n observability deployment/opentelemetry-collector --tail=30
 
 Look for: receivers started, no ERROR lines.
 
-### 2. Metrics → Prometheus
+### 2. Metrics → VictoriaMetrics
 
 ```bash
-kubectl port-forward -n observability svc/prometheus-server 9090:80 &
+kubectl port-forward -n observability svc/victoria-metrics-server 8428:8428 &
 PF1=$!
 sleep 3
 
-curl -s "http://localhost:9090/prometheus/api/v1/targets" | python3 -c "
+curl -s "http://localhost:8428/api/v1/query?query=otelcol_receiver_accepted_metric_points_total" | \
+  python3 -c "import sys,json; d=json.load(sys.stdin); print('Metrics PASS' if d['data']['result'] else 'Metrics FAIL: no data')"
+
+# Check all scrape targets are up
+curl -s "http://localhost:8428/api/v1/query?query=up" | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
-targets = d.get('data', {}).get('activeTargets', [])
-otel = [t for t in targets if 'otel' in t.get('labels', {}).get('job', '').lower()]
-for t in otel:
-    print(f\"OTel target {t['labels']['instance']}: {t['health']}\")
-if not otel:
-    print('WARNING: no OTel targets found in Prometheus')
+for r in d.get('data', {}).get('result', []):
+    job = r['metric'].get('job', '?')
+    val = r['value'][1]
+    print(f\"  {job}: {'UP' if val == '1' else 'DOWN'}\")
 "
-
-curl -s "http://localhost:9090/prometheus/api/v1/query?query=otelcol_receiver_accepted_metric_points_total" | \
-  python3 -c "import sys,json; d=json.load(sys.stdin); print('Metrics PASS' if d['data']['result'] else 'Metrics FAIL: no data')"
 
 kill $PF1 2>/dev/null
 ```

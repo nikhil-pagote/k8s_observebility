@@ -8,25 +8,29 @@ A Kubernetes observability POC using **OpenTelemetry** as the unified collection
 
 | Pillar | Tool | Role |
 |---|---|---|
-| **Metrics** | Prometheus + Grafana | Collect, store, and visualize metrics |
+| **Metrics** | VictoriaMetrics + Grafana | Store and visualize metrics (OTel pushes via remote_write) |
 | **Traces** | Jaeger | Distributed trace storage and query UI |
 | **Logs** | Loki | Log aggregation and querying |
 
 ### Data flow
 
 ```
-App (OTLP :4317/4318)
-        │
-        ▼
-OTel Collector (Deployment)
-        │
-   ┌────┴──────┐
-   ▼           ▼           ▼
-Prometheus  Jaeger       Loki
-   │           │           │
-   └─────┬─────┘           │
-         ▼                 │
-      Grafana ◄────────────┘
+node-exporter       :9100 ─┐
+kube-state-metrics  :8080 ─┤
+pushgateway         :9091 ─┤  OTel prometheus receiver (pull)
+cAdvisor (kubelet)        ─┤
+annotated pods/endpoints  ─┘
+                           │
+App (OTLP :4317/4318) ─────┤  OTel Collector (single ingestion layer)
+                           │
+             ┌─────────────┼──────────────┐
+             ▼             ▼              ▼
+     VictoriaMetrics     Jaeger         Loki
+     (remote_write)   (OTLP traces)  (OTLP logs)
+             │             │              │
+             └─────────────┴──────────────┘
+                           ▼
+                        Grafana
 ```
 
 ### Components
@@ -34,11 +38,14 @@ Prometheus  Jaeger       Loki
 | Component | Namespace | Purpose |
 |---|---|---|
 | **Traefik** | traefik | Path-based ingress on NodePort 30080 |
-| **OTel Collector** | observability | Receives OTLP; fans out metrics → Prometheus, traces → Jaeger, logs → Loki |
-| **Prometheus** | observability | Scrapes and stores metrics |
-| **Loki** | observability | Stores log data (single-binary, filesystem) |
-| **Jaeger** | observability | Stores distributed traces; trace search and dependency graphs |
-| **Grafana** | observability | Unified dashboards — correlates traces ↔ logs ↔ metrics |
+| **OTel Collector** | observability | Single ingestion layer — scrapes infra metrics, receives OTLP from apps |
+| **VictoriaMetrics** | observability | Metrics storage backend, receives remote_write, serves PromQL |
+| **node-exporter** | observability | Host metrics (CPU, memory, disk, network) — DaemonSet |
+| **kube-state-metrics** | observability | Kubernetes object metrics (pod status, replicas, resource limits) |
+| **Pushgateway** | observability | Accepts pushed metrics from batch jobs and short-lived processes |
+| **Loki** | observability | Log storage (single-binary, filesystem) |
+| **Jaeger** | observability | Distributed trace storage and query UI |
+| **Grafana** | observability | Unified dashboards — correlates metrics, traces, and logs |
 | **ArgoCD** | argocd | GitOps reconciler for all stack components |
 
 ### Ingress URL map
@@ -46,7 +53,6 @@ Prometheus  Jaeger       Loki
 | Path | Service | Notes |
 |---|---|---|
 | `/grafana` | Grafana | admin / admin123 |
-| `/prometheus` | Prometheus | — |
 | `/jaeger` | Jaeger Query UI | — |
 | `/traefik` | Traefik Dashboard | redirects to `/dashboard/` |
 | `/argocd` | ArgoCD Server | admin / see below |
@@ -89,7 +95,6 @@ ArgoCD reads each app's local `chart/` and `values/values.yaml` and deploys them
 | UI | URL | Credentials |
 |---|---|---|
 | Grafana | http://localhost:30080/grafana | admin / admin123 |
-| Prometheus | http://localhost:30080/prometheus | — |
 | Jaeger | http://localhost:30080/jaeger | — |
 | Traefik | http://localhost:30080/traefik | — |
 | ArgoCD | http://localhost:30080/argocd | admin / `kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath='{.data.password}' \| base64 -d` |
@@ -98,7 +103,9 @@ ArgoCD reads each app's local `chart/` and `values/values.yaml` and deploys them
 
 ## Instrumentation
 
-Send telemetry to the OTel Collector via OTLP:
+### App telemetry (metrics, traces, logs)
+
+Send all telemetry to the OTel Collector via OTLP:
 
 ```yaml
 env:
@@ -108,21 +115,31 @@ env:
     value: "my-service"
 ```
 
+### Batch job metrics (Pushgateway)
+
+For jobs that exit before they can be scraped:
+
+```bash
+# Push a metric from a shell script
+echo "job_duration_seconds 42" | curl --data-binary @- \
+  http://pushgateway.observability.svc.cluster.local:9091/metrics/job/my-batch-job
+```
+
 ---
 
 ## Grafana Data Sources
 
 Auto-provisioned via Helm values:
-- **Prometheus**: `http://prometheus-server.observability.svc.cluster.local:80`
+- **VictoriaMetrics** (Prometheus-compatible): `http://victoria-metrics-server.observability.svc.cluster.local:8428`
 - **Loki**: `http://loki.observability.svc.cluster.local:3100`
 
-### Import dashboards
+### Dashboards (auto-imported)
 
 | Dashboard | ID | Data source |
 |---|---|---|
-| OTel Collector | 15983 | Prometheus |
-| Kubernetes Cluster | 7249 | Prometheus |
-| Node Exporter | 1860 | Prometheus |
+| Node Exporter Full | 1860 | VictoriaMetrics |
+| Kubernetes Cluster Overview | 7249 | VictoriaMetrics |
+| Prometheus Stats | 3662 | VictoriaMetrics |
 
 ---
 
@@ -131,9 +148,10 @@ Auto-provisioned via Helm values:
 | Symptom | Likely Cause | Fix |
 |---|---|---|
 | `/grafana` returns 404 | IngressRoute not picked up | `kubectl describe ingressroute -n observability`; check Traefik logs |
-| Grafana CSS/JS broken | `serve_from_sub_path` not set | Helm upgrade with `serve_from_sub_path=true` and correct `root_url` |
-| Jaeger UI: Unknown path | `base-path` not set | Check `jaeger.args: [--query.base-path=/jaeger]` in values |
+| Grafana CSS/JS broken | `serve_from_sub_path` not set | Check `serve_from_sub_path=true` and `root_url` in Grafana values |
+| Jaeger UI: Unknown path | `base-path` not set | Check `userconfig.extensions.jaeger_query.base_path: /jaeger` in values |
 | Collector `CrashLoopBackOff` | Bad config YAML or wrong image | `kubectl logs deployment/opentelemetry-collector -n observability` |
+| No metrics in VictoriaMetrics | remote_write failing | Check OTel logs for `prometheusremotewrite` errors; verify VM pod running |
 | No logs in Loki | Collector can't reach Loki | Check collector logs; verify Loki pod running and OTLP endpoint |
 | No traces in Jaeger | Collector can't reach Jaeger | Verify `jaeger-collector` service; check `insecure: true` on exporter |
 
@@ -160,11 +178,14 @@ kubectl get ingressroute -A
 
 | Component | Memory | CPU |
 |---|---|---|
+| VictoriaMetrics | 1 GB | 1 core |
 | Grafana | 512 MB | 500m |
-| Prometheus | 2 GB | 1 core |
 | Jaeger | 512 MB | 500m |
 | Loki | 512 MB | 500m |
 | OTel Collector | 512 MB | 500m |
+| node-exporter | 128 MB | 250m |
+| kube-state-metrics | 256 MB | 250m |
+| Pushgateway | 128 MB | 250m |
 
 ---
 
@@ -174,6 +195,7 @@ This stack is a **development/POC** setup. For production:
 
 - **Jaeger storage**: Switch from in-memory to a persistent backend (e.g., Elasticsearch, Cassandra)
 - **Loki**: Switch from filesystem to object storage (S3, GCS); deploy in distributed mode
-- **Prometheus**: Add persistent storage (PVC with `storageSpec`)
+- **VictoriaMetrics**: Deploy as a cluster for high availability and horizontal scaling
+- **Alertmanager**: Add for alert routing to PagerDuty, Slack, email etc.
 - **Security**: Enable TLS, RBAC, and network policies throughout
 - **High availability**: Multiple replicas for all components

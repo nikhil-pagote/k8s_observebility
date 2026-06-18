@@ -43,8 +43,9 @@ App (OTLP :4317/4318) ───────────────────�
 | Jaeger | observability | jaegertracing/jaeger | Trace store (in-memory for POC) |
 | Loki | observability | grafana/loki | Log store (single-binary, filesystem) |
 | OTel Collector | observability | open-telemetry/opentelemetry-collector | Single ingestion layer — scrapes infra, receives OTLP from apps |
-| node-exporter | observability | prometheus-community/prometheus-node-exporter | Host metrics (CPU, mem, disk, network) |
+| node-exporter | observability | prometheus-community/prometheus-node-exporter | Host metrics (CPU, mem, disk, network) — DaemonSet |
 | kube-state-metrics | observability | prometheus-community/kube-state-metrics | Kubernetes object metrics |
+| Pushgateway | observability | prometheus-community/prometheus-pushgateway | Accepts pushed metrics from batch/short-lived jobs |
 
 ## Ingress Routing
 
@@ -53,7 +54,6 @@ All UIs via Traefik at `http://localhost:30080`:
 | Path | Service | Port | Notes |
 |---|---|---|---|
 | `/grafana` | grafana | 80 | sub-path routing via `serve_from_sub_path=true` |
-| `/prometheus` | prometheus-server | 80 | |
 | `/jaeger` | jaeger | 16686 | |
 | `/traefik` | Traefik Dashboard | — | redirects to `/dashboard/` via middleware |
 | `/argocd` | argocd-server (argocd ns) | 80 | cross-namespace IngressRoute in traefik ns |
