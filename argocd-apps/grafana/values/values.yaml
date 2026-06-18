@@ -26,7 +26,6 @@ datasources:
     apiVersion: 1
     datasources:
       - name: VictoriaMetrics
-        uid: VictoriaMetrics
         type: prometheus
         url: http://victoria-metrics.observability.svc.cluster.local:8428
         access: proxy
@@ -63,14 +62,42 @@ dashboards:
 
 extraInitContainers:
   - name: fix-dashboard-datasources
-    image: busybox
+    image: python:3.11-alpine
     command: ["/bin/sh", "-c"]
     args:
       - |
-        for f in /var/lib/grafana/dashboards/default/*.json; do
-          sed -i 's/\${DS__VICTORIAMETRICS-PROD-ALL}/VictoriaMetrics/g' "$f"
-          sed -i 's/\${DS_PROMETHEUS}/VictoriaMetrics/g' "$f"
-        done
+        python3 - << 'PYEOF'
+        import json
+
+        filepath = '/var/lib/grafana/dashboards/default/kubernetes-views-global.json'
+        try:
+            with open(filepath) as f:
+                d = json.load(f)
+        except Exception as e:
+            print(f"Error reading dashboard: {e}")
+            exit(0)
+
+        d.pop('__inputs', None)
+        d.pop('__requires', None)
+
+        ds_var = {
+            "name": "datasource", "type": "datasource",
+            "pluginId": "prometheus", "hide": 0,
+            "label": "Datasource", "refresh": 1,
+            "options": [], "current": {}
+        }
+        var_list = d.get('templating', {}).get('list', [])
+        var_list = [v for v in var_list if v.get('name') != 'datasource']
+        d['templating']['list'] = [ds_var] + var_list
+
+        content = json.dumps(d)
+        content = content.replace('${DS__VICTORIAMETRICS-PROD-ALL}', '${datasource}')
+        content = content.replace('${DS_PROMETHEUS}', '${datasource}')
+
+        with open(filepath, 'w') as f:
+            f.write(content)
+        print("Dashboard patched OK")
+        PYEOF
     volumeMounts:
       - name: storage
         mountPath: /var/lib/grafana
