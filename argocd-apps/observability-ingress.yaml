@@ -23,6 +23,13 @@ spec:
             name: grafana
             port:
               number: 80
+      - path: /vmui
+        pathType: Prefix
+        backend:
+          service:
+            name: victoria-metrics-server
+            port:
+              number: 8428
       - path: /jaeger
         pathType: Prefix
         backend:

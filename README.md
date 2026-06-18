@@ -53,6 +53,7 @@ App (OTLP :4317/4318) ─────┤  OTel Collector (single ingestion layer
 | Path | Service | Notes |
 |---|---|---|
 | `/grafana` | Grafana | admin / admin123 |
+| `/vmui` | VictoriaMetrics UI | ad-hoc PromQL queries |
 | `/jaeger` | Jaeger Query UI | — |
 | `/traefik` | Traefik Dashboard | redirects to `/dashboard/` |
 | `/argocd` | ArgoCD Server | admin / see below |
@@ -95,6 +96,7 @@ ArgoCD reads each app's local `chart/` and `values/values.yaml` and deploys them
 | UI | URL | Credentials |
 |---|---|---|
 | Grafana | http://localhost:30080/grafana | admin / admin123 |
+| VictoriaMetrics | http://localhost:30080/vmui | — |
 | Jaeger | http://localhost:30080/jaeger | — |
 | Traefik | http://localhost:30080/traefik | — |
 | ArgoCD | http://localhost:30080/argocd | admin / `kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath='{.data.password}' \| base64 -d` |
