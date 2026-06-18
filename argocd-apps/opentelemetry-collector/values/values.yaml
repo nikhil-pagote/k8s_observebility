@@ -43,9 +43,14 @@ config:
     prometheus:
       config:
         scrape_configs:
+          - job_name: pushgateway
+            static_configs:
+              - targets: ['pushgateway.observability.svc.cluster.local:9091']
+            honor_labels: true
+
           - job_name: kube-state-metrics
             static_configs:
-              - targets: ['prometheus-kube-state-metrics.observability.svc.cluster.local:8080']
+              - targets: ['kube-state-metrics.observability.svc.cluster.local:8080']
 
           - job_name: node-exporter
             static_configs:

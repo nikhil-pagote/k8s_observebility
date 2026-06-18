@@ -46,5 +46,6 @@ Report as a table:
 | OTel Collector | observability | Running / Error | single ingestion layer |
 | node-exporter | observability | Running / Error | DaemonSet — one per node |
 | kube-state-metrics | observability | Running / Error | |
+| Pushgateway | observability | Running / Error | for batch/short-lived jobs |
 
 List any pods in CrashLoopBackOff, Pending, or Error state with a brief log snippet.

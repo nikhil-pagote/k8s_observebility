@@ -35,12 +35,13 @@ helm pull grafana/grafana                                    --version 10.5.15  
 helm pull victoriametrics/victoria-metrics-single            --version 0.40.1   --untar --untardir argocd-apps/victoria-metrics/
 helm pull prometheus-community/prometheus-node-exporter      --version 4.55.0   --untar --untardir argocd-apps/node-exporter/
 helm pull prometheus-community/kube-state-metrics            --version 7.5.1    --untar --untardir argocd-apps/kube-state-metrics/
+helm pull prometheus-community/prometheus-pushgateway        --version 3.6.1    --untar --untardir argocd-apps/pushgateway/
 helm pull jaegertracing/jaeger                               --version 4.11.1   --untar --untardir argocd-apps/jaeger/
 helm pull grafana/loki                                       --version 6.55.0   --untar --untardir argocd-apps/loki/
 helm pull open-telemetry/opentelemetry-collector             --version 0.158.2  --untar --untardir argocd-apps/opentelemetry-collector/
 
 echo "Charts pulled:"
-for app in traefik grafana victoria-metrics node-exporter kube-state-metrics jaeger loki opentelemetry-collector; do
+for app in traefik grafana victoria-metrics node-exporter kube-state-metrics pushgateway jaeger loki opentelemetry-collector; do
   echo "  $app/chart: $(ls argocd-apps/$app/chart/ 2>/dev/null | head -1 || echo 'empty')"
 done
 ```
@@ -59,6 +60,7 @@ helm pull grafana/grafana                                    --version 10.5.15  
 helm pull victoriametrics/victoria-metrics-single            --version 0.40.1   --untar --untardir argocd-apps/victoria-metrics/
 helm pull prometheus-community/prometheus-node-exporter      --version 4.55.0   --untar --untardir argocd-apps/node-exporter/
 helm pull prometheus-community/kube-state-metrics            --version 7.5.1    --untar --untardir argocd-apps/kube-state-metrics/
+helm pull prometheus-community/prometheus-pushgateway        --version 3.6.1    --untar --untardir argocd-apps/pushgateway/
 helm pull jaegertracing/jaeger                               --version 4.11.1   --untar --untardir argocd-apps/jaeger/
 helm pull grafana/loki                                       --version 6.55.0   --untar --untardir argocd-apps/loki/
 helm pull open-telemetry/opentelemetry-collector             --version 0.158.2  --untar --untardir argocd-apps/opentelemetry-collector/

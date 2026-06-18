@@ -32,7 +32,7 @@ kind get clusters | grep -q observability-cluster \
 
 # Local charts must be present
 missing=()
-for app in traefik grafana victoria-metrics node-exporter kube-state-metrics jaeger loki opentelemetry-collector; do
+for app in traefik grafana victoria-metrics node-exporter kube-state-metrics pushgateway jaeger loki opentelemetry-collector; do
   [ -f "argocd-apps/$app/chart/Chart.yaml" ] || missing+=("$app")
 done
 [ ${#missing[@]} -eq 0 ] \
