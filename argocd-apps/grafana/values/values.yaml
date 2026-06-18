@@ -48,9 +48,7 @@ dashboards:
     traefik:
       file: dashboards/traefik.json
     node-exporter:
-      gnetId: 1860
-      revision: 22
-      datasource: VictoriaMetrics
+      file: dashboards/node-exporter.json
     victoria-metrics:
       gnetId: 10229
       revision: 35
