@@ -49,6 +49,8 @@ dashboards:
       file: dashboards/traefik.json
     node-exporter:
       file: dashboards/node-exporter.json
+    loki-k8s-events:
+      file: dashboards/loki-k8s-events.json
     victoria-metrics:
       gnetId: 10229
       revision: 35
