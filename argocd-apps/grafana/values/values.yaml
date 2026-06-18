@@ -1,5 +1,8 @@
 adminPassword: admin123
 
+image:
+  tag: "12.4.3"
+
 initChownData:
   enabled: false
 
@@ -42,6 +45,10 @@ dashboards:
   default:
     kube-state-metrics:
       gnetId: 16520
+      revision: 1
+      datasource: VictoriaMetrics
+    traefik:
+      gnetId: 25330
       revision: 1
       datasource: VictoriaMetrics
     node-exporter:
