@@ -2201,11 +2201,7 @@
   "templating": {
     "list": [
       {
-        "current": {
-          "selected": true,
-          "text": "VictoriaMetrics",
-          "value": "victoriametrics"
-        },
+        "current": {},
         "label": "datasource",
         "name": "datasource",
         "options": [],
