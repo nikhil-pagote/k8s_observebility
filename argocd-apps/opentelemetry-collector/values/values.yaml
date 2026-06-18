@@ -8,12 +8,13 @@ command:
 
 service:
   type: ClusterIP
-  ports:
-    metrics:
-      enabled: true
-      containerPort: 8888
-      servicePort: 8888
-      protocol: TCP
+
+ports:
+  metrics:
+    enabled: true
+    containerPort: 8888
+    servicePort: 8888
+    protocol: TCP
 
 serviceAccount:
   create: true
