@@ -30,6 +30,7 @@ helm repo list
 Pull all charts at their pinned versions into each app's `chart/` directory.
 
 ```bash
+helm pull argo/argo-cd                                       --version 9.5.21   --untar --untardir argocd-apps/argocd/
 helm pull traefik/traefik                                    --version 41.0.0   --untar --untardir argocd-apps/traefik/
 helm pull grafana/grafana                                    --version 10.5.15  --untar --untardir argocd-apps/grafana/
 helm pull victoriametrics/victoria-metrics-single            --version 0.40.1   --untar --untardir argocd-apps/victoria-metrics/
@@ -41,7 +42,7 @@ helm pull grafana/loki                                       --version 6.55.0   
 helm pull open-telemetry/opentelemetry-collector             --version 0.158.2  --untar --untardir argocd-apps/opentelemetry-collector/
 
 echo "Charts pulled:"
-for app in traefik grafana victoria-metrics node-exporter kube-state-metrics pushgateway jaeger loki opentelemetry-collector; do
+for app in argocd traefik grafana victoria-metrics node-exporter kube-state-metrics pushgateway jaeger loki opentelemetry-collector; do
   echo "  $app/chart: $(ls argocd-apps/$app/chart/ 2>/dev/null | head -1 || echo 'empty')"
 done
 ```
@@ -55,6 +56,7 @@ Refresh repo index and re-pull all charts (run when upgrading versions):
 ```bash
 helm repo update
 
+helm pull argo/argo-cd                                       --version 9.5.21   --untar --untardir argocd-apps/argocd/
 helm pull traefik/traefik                                    --version 41.0.0   --untar --untardir argocd-apps/traefik/
 helm pull grafana/grafana                                    --version 10.5.15  --untar --untardir argocd-apps/grafana/
 helm pull victoriametrics/victoria-metrics-single            --version 0.40.1   --untar --untardir argocd-apps/victoria-metrics/
