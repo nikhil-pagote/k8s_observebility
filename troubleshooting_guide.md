@@ -222,15 +222,9 @@ grafana.ini:
 
 ### "No services" in Jaeger UI
 
-No traces have been sent yet — Jaeger in-memory storage starts empty. Send a test trace via OTLP:
+No traces have been sent yet — Jaeger in-memory storage starts empty. Real data appears only when an instrumented app sends traces via OTLP to the collector (`opentelemetry-collector.observability.svc.cluster.local:4317`).
 
-```bash
-# From any pod in the cluster
-curl -X POST http://opentelemetry-collector.observability.svc.cluster.local:4318/v1/traces \
-  -H "Content-Type: application/json" -d '{"resourceSpans":[]}'
-```
-
-Real data appears only when an instrumented app sends traces.
+The collector exports traces to `jaeger.observability.svc.cluster.local:4317` (OTLP gRPC). Jaeger v2 accepts traces on its OTLP receiver, not the legacy 14250 port.
 
 ### Jaeger UI at /jaeger returns 404 or blank
 

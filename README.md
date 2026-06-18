@@ -135,13 +135,16 @@ Auto-provisioned via Helm values:
 - **VictoriaMetrics** (Prometheus-compatible): `http://victoria-metrics.observability.svc.cluster.local:8428`
 - **Loki**: `http://loki.observability.svc.cluster.local:3100`
 
-### Dashboards (auto-imported)
+### Dashboards (auto-provisioned)
 
-| Dashboard | ID | Data source |
+| Dashboard | Grafana ID | Source |
 |---|---|---|
-| Node Exporter Full | 1860 | VictoriaMetrics |
-| Kubernetes Cluster Overview | 7249 | VictoriaMetrics |
-| Prometheus Stats | 3662 | VictoriaMetrics |
+| K8S Dashboard (global cluster view) | 15661 rev 2 | vendored JSON — `chart/dashboards/` |
+| Kubernetes Traefik Ingress NextGen | 25330 rev 1 | downloaded via gnetId at startup |
+| Node Exporter Full | 1860 rev 22 | downloaded via gnetId at startup |
+| VictoriaMetrics single-node | 10229 rev 35 | downloaded via gnetId at startup |
+
+The K8S Dashboard JSON is pre-patched and committed to the repo (`argocd-apps/grafana/chart/dashboards/kubernetes-views-global.json`) so it works with VictoriaMetrics as the datasource without any runtime network dependency.
 
 ---
 
@@ -155,7 +158,7 @@ Auto-provisioned via Helm values:
 | Collector `CrashLoopBackOff` | Bad config YAML or wrong image | `kubectl logs deployment/opentelemetry-collector -n observability` |
 | No metrics in VictoriaMetrics | remote_write failing | Check OTel logs for `prometheusremotewrite` errors; verify VM pod running |
 | No logs in Loki | Collector can't reach Loki | Check collector logs; verify Loki pod running and OTLP endpoint |
-| No traces in Jaeger | Collector can't reach Jaeger | Verify `jaeger-collector` service; check `insecure: true` on exporter |
+| No traces in Jaeger | Collector can't reach Jaeger | Verify `jaeger` service in observability ns; check `insecure: true` on exporter |
 
 ### Useful commands
 

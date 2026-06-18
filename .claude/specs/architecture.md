@@ -94,5 +94,5 @@ Auto-provisioned via Grafana Helm values:
 - VictoriaMetrics (as Prometheus type): `http://victoria-metrics.observability.svc.cluster.local:8428`
 - Loki: `http://loki.observability.svc.cluster.local:3100`
 
-Jaeger traces are queried via Grafana's Jaeger data source (add manually):
+Jaeger traces can be explored directly at `http://localhost:30080/jaeger`. A Grafana Jaeger datasource can be added manually for trace correlation:
 - Jaeger: `http://jaeger.observability.svc.cluster.local:16686`
