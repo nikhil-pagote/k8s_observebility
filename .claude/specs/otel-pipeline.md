@@ -19,7 +19,7 @@ Processors:
   resource: k8s.cluster.name=observability-cluster
 
 Exporters:
-  prometheusremotewrite: http://victoria-metrics-server.observability.svc.cluster.local:8428/api/v1/write
+  prometheusremotewrite: http://victoria-metrics.observability.svc.cluster.local:8428/api/v1/write
   otlp/jaeger: jaeger-collector.observability.svc.cluster.local:14250
   otlphttp/loki: http://loki.observability.svc.cluster.local:3100/otlp
   debug: verbosity=detailed

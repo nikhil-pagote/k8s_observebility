@@ -132,7 +132,7 @@ echo "job_duration_seconds 42" | curl --data-binary @- \
 ## Grafana Data Sources
 
 Auto-provisioned via Helm values:
-- **VictoriaMetrics** (Prometheus-compatible): `http://victoria-metrics-server.observability.svc.cluster.local:8428`
+- **VictoriaMetrics** (Prometheus-compatible): `http://victoria-metrics.observability.svc.cluster.local:8428`
 - **Loki**: `http://loki.observability.svc.cluster.local:3100`
 
 ### Dashboards (auto-imported)

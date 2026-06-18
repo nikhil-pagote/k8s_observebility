@@ -20,7 +20,7 @@ Look for: receivers started, no ERROR lines.
 ### 2. Metrics → VictoriaMetrics
 
 ```bash
-kubectl port-forward -n observability svc/victoria-metrics-server 8428:8428 &
+kubectl port-forward -n observability svc/victoria-metrics 8428:8428 &
 PF1=$!
 sleep 3
 

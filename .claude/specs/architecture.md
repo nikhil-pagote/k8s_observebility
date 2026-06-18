@@ -91,7 +91,7 @@ Sync-wave annotation controls order:
 ## Grafana Data Sources
 
 Auto-provisioned via Grafana Helm values:
-- VictoriaMetrics (as Prometheus type): `http://victoria-metrics-server.observability.svc.cluster.local:8428`
+- VictoriaMetrics (as Prometheus type): `http://victoria-metrics.observability.svc.cluster.local:8428`
 - Loki: `http://loki.observability.svc.cluster.local:3100`
 
 Jaeger traces are queried via Grafana's Jaeger data source (add manually):

@@ -139,7 +139,7 @@ config:
 
   exporters:
     prometheusremotewrite:
-      endpoint: "http://victoria-metrics-server.observability.svc.cluster.local:8428/api/v1/write"
+      endpoint: "http://victoria-metrics.observability.svc.cluster.local:8428/api/v1/write"
       tls:
         insecure: true
     debug:
