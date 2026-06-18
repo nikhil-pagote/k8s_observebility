@@ -44,7 +44,7 @@ datasources:
 dashboards:
   default:
     k8s-dashboard:
-      gnetId: 15661
+      gnetId: 13332
       revision: 1
       datasource: VictoriaMetrics
     traefik:
