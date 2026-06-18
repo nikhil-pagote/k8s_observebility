@@ -202,13 +202,13 @@ config:
     pipelines:
       traces:
         receivers: [otlp]
-        processors: [batch, memory_limiter, resource]
+        processors: [memory_limiter, resource, batch]
         exporters: [debug, otlp/jaeger]
       metrics:
         receivers: [otlp, prometheus]
-        processors: [batch, memory_limiter, resource]
+        processors: [memory_limiter, resource, batch]
         exporters: [prometheusremotewrite, debug]
       logs:
         receivers: [otlp]
-        processors: [batch, memory_limiter, resource]
+        processors: [memory_limiter, resource, batch]
         exporters: [otlphttp/loki, debug]
