@@ -51,6 +51,7 @@ helm repo update argo
 helm upgrade --install argocd argo/argo-cd \
   --namespace argocd \
   --create-namespace \
+  -f argocd-apps/argocd/values/values.yaml \
   --wait
 
 kubectl get pods -n argocd

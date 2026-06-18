@@ -1,0 +1,15 @@
+configs:
+  params:
+    # Disable HTTPS redirect — Traefik handles TLS termination at the ingress
+    server.insecure: "true"
+    # Sub-path routing: ArgoCD is served at /argocd via Traefik IngressRoute
+    server.rootpath: "/argocd"
+
+server:
+  resources:
+    limits:
+      memory: 256Mi
+      cpu: 250m
+    requests:
+      memory: 128Mi
+      cpu: 100m
