@@ -40,10 +40,6 @@ datasources:
 
 dashboards:
   default:
-    kubernetes-cluster:
-      gnetId: 7249
-      revision: 1
-      datasource: VictoriaMetrics
     node-exporter:
       gnetId: 1860
       revision: 22
