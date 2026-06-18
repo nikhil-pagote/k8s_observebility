@@ -43,10 +43,108 @@ datasources:
 
 dashboards:
   default:
-    k8s-dashboard:
-      gnetId: 13332
-      revision: 1
-      datasource: VictoriaMetrics
+    kubernetes-overview:
+      json: |
+        {
+          "title": "Kubernetes Overview",
+          "uid": "k8s-custom-overview",
+          "timezone": "browser",
+          "refresh": "30s",
+          "schemaVersion": 38,
+          "time": {"from": "now-1h", "to": "now"},
+          "templating": {
+            "list": [
+              {
+                "name": "datasource",
+                "type": "datasource",
+                "pluginId": "prometheus",
+                "hide": 0,
+                "label": "Datasource"
+              }
+            ]
+          },
+          "panels": [
+            {
+              "id": 1, "type": "stat", "title": "Nodes",
+              "datasource": {"type": "prometheus", "uid": "${datasource}"},
+              "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+              "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "graphMode": "none"},
+              "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "count(kube_node_info)", "legendFormat": "", "refId": "A"}]
+            },
+            {
+              "id": 2, "type": "stat", "title": "Pods",
+              "datasource": {"type": "prometheus", "uid": "${datasource}"},
+              "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
+              "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "graphMode": "none"},
+              "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "count(kube_pod_info)", "legendFormat": "", "refId": "A"}]
+            },
+            {
+              "id": 3, "type": "stat", "title": "Namespaces",
+              "datasource": {"type": "prometheus", "uid": "${datasource}"},
+              "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
+              "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "graphMode": "none"},
+              "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "count(count(kube_pod_info) by (namespace))", "legendFormat": "", "refId": "A"}]
+            },
+            {
+              "id": 4, "type": "stat", "title": "Cluster CPU Usage",
+              "datasource": {"type": "prometheus", "uid": "${datasource}"},
+              "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+              "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "area"},
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "percent", "min": 0, "max": 100,
+                  "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 70}, {"color": "red", "value": 90}]}
+                }
+              },
+              "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum(rate(container_cpu_usage_seconds_total{container!=\"\"}[5m])) / sum(kube_node_status_allocatable{resource=\"cpu\",unit=\"core\"}) * 100", "legendFormat": "CPU %", "refId": "A"}]
+            },
+            {
+              "id": 5, "type": "stat", "title": "Cluster Memory Usage",
+              "datasource": {"type": "prometheus", "uid": "${datasource}"},
+              "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+              "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "area"},
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "percent", "min": 0, "max": 100,
+                  "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 70}, {"color": "red", "value": 90}]}
+                }
+              },
+              "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum(container_memory_working_set_bytes{container!=\"\"}) / sum(kube_node_status_allocatable{resource=\"memory\",unit=\"byte\"}) * 100", "legendFormat": "Memory %", "refId": "A"}]
+            },
+            {
+              "id": 6, "type": "timeseries", "title": "CPU Usage % by Node",
+              "datasource": {"type": "prometheus", "uid": "${datasource}"},
+              "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+              "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "custom": {"lineWidth": 2, "fillOpacity": 10}}},
+              "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum(rate(container_cpu_usage_seconds_total{container!=\"\"}[5m])) by (node) / sum(kube_node_status_allocatable{resource=\"cpu\",unit=\"core\"}) by (node) * 100", "legendFormat": "{{node}}", "refId": "A"}]
+            },
+            {
+              "id": 7, "type": "timeseries", "title": "Memory Usage % by Node",
+              "datasource": {"type": "prometheus", "uid": "${datasource}"},
+              "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+              "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "custom": {"lineWidth": 2, "fillOpacity": 10}}},
+              "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum(container_memory_working_set_bytes{container!=\"\"}) by (node) / sum(kube_node_status_allocatable{resource=\"memory\",unit=\"byte\"}) by (node) * 100", "legendFormat": "{{node}}", "refId": "A"}]
+            },
+            {
+              "id": 8, "type": "table", "title": "Pods by Namespace",
+              "datasource": {"type": "prometheus", "uid": "${datasource}"},
+              "gridPos": {"h": 8, "w": 6, "x": 0, "y": 12},
+              "options": {"sortBy": [{"desc": true, "displayName": "Pods"}]},
+              "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sort_desc(count(kube_pod_info) by (namespace))", "legendFormat": "{{namespace}}", "instant": true, "refId": "A"}],
+              "transformations": [{"id": "organize", "options": {"renameByName": {"Value": "Pods", "namespace": "Namespace"}}}]
+            },
+            {
+              "id": 9, "type": "timeseries", "title": "Network I/O by Node",
+              "datasource": {"type": "prometheus", "uid": "${datasource}"},
+              "gridPos": {"h": 8, "w": 18, "x": 6, "y": 12},
+              "fieldConfig": {"defaults": {"unit": "Bps", "custom": {"lineWidth": 2, "fillOpacity": 5}}},
+              "targets": [
+                {"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum(rate(container_network_receive_bytes_total[5m])) by (node)", "legendFormat": "rx · {{node}}", "refId": "A"},
+                {"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum(rate(container_network_transmit_bytes_total[5m])) by (node)", "legendFormat": "tx · {{node}}", "refId": "B"}
+              ]
+            }
+          ]
+        }
     traefik:
       gnetId: 25330
       revision: 1
