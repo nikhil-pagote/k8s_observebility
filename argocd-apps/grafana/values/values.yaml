@@ -44,9 +44,7 @@ datasources:
 dashboards:
   default:
     kubernetes-views-global:
-      gnetId: 15661
-      revision: 2
-      datasource: VictoriaMetrics
+      file: dashboards/kubernetes-views-global.json
     traefik:
       gnetId: 25330
       revision: 1
@@ -59,49 +57,6 @@ dashboards:
       gnetId: 10229
       revision: 35
       datasource: VictoriaMetrics
-
-extraInitContainers:
-  - name: fix-dashboard-datasources
-    image: python:3.11-alpine
-    command: ["/bin/sh", "-c"]
-    args:
-      - |
-        python3 - << 'PYEOF'
-        import json
-
-        filepath = '/var/lib/grafana/dashboards/default/kubernetes-views-global.json'
-        try:
-            with open(filepath) as f:
-                d = json.load(f)
-        except Exception as e:
-            print(f"Error reading dashboard: {e}")
-            exit(0)
-
-        d.pop('__inputs', None)
-        d.pop('__requires', None)
-
-        ds_var = {
-            "name": "datasource", "type": "datasource",
-            "query": "prometheus", "hide": 0,
-            "label": "Datasource", "refresh": 1,
-            "regex": "", "multi": False, "includeAll": False,
-            "options": [], "current": {}
-        }
-        var_list = d.get('templating', {}).get('list', [])
-        var_list = [v for v in var_list if v.get('name') != 'datasource']
-        d['templating']['list'] = [ds_var] + var_list
-
-        content = json.dumps(d)
-        content = content.replace('${DS__VICTORIAMETRICS-PROD-ALL}', '${datasource}')
-        content = content.replace('${DS_PROMETHEUS}', '${datasource}')
-
-        with open(filepath, 'w') as f:
-            f.write(content)
-        print("Dashboard patched OK")
-        PYEOF
-    volumeMounts:
-      - name: storage
-        mountPath: /var/lib/grafana
 
 dashboardProviders:
   dashboardproviders.yaml:
