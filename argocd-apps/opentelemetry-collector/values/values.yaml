@@ -162,6 +162,12 @@ config:
         - key: k8s.cluster.name
           value: "observability-cluster"
           action: upsert
+    transform/traefik_labels:
+      metric_statements:
+        - context: datapoint
+          statements:
+            - set(attributes["pod"], resource.attributes["pod"]) where resource.attributes["pod"] != nil
+            - set(attributes["host"], ExtractPatterns(attributes["router"], ".*-(?P<host>[^-]+)-[^-]+@kubernetes$")["host"]) where IsMatch(attributes["router"], ".*@kubernetes$")
 
   exporters:
     prometheusremotewrite:
@@ -193,7 +199,7 @@ config:
         exporters: [debug, otlp/jaeger]
       metrics:
         receivers: [otlp, prometheus]
-        processors: [memory_limiter, resource, batch]
+        processors: [memory_limiter, resource, transform/traefik_labels, batch]
         exporters: [prometheusremotewrite, debug]
       logs:
         receivers: [otlp]
