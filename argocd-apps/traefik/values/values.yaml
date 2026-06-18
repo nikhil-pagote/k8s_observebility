@@ -38,11 +38,15 @@ api:
   dashboard: true
   insecure: true
 
-ingressRoute:
-  dashboard:
-    enabled: true
-    entryPoints:
-      - web
+# Built-in dashboard IngressRoute disabled — the dashboard is exposed via the
+# manual traefik-alias IngressRoute in extraObjects, which rewrites /traefik
+# to /dashboard/ using replacePathRegex. Enabling this would create a redundant
+# route that exposes /dashboard directly without going through /traefik.
+# ingressRoute:
+#   dashboard:
+#     enabled: true
+#     entryPoints:
+#       - web
 
 metrics:
   prometheus:
