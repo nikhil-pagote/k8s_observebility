@@ -38,23 +38,15 @@ api:
   dashboard: true
   insecure: true
 
-# Built-in dashboard IngressRoute disabled — the dashboard is exposed via the
-# manual traefik-alias IngressRoute in extraObjects, which rewrites /traefik
-# to /dashboard/ so the browser stays at http://localhost:30080/traefik.
-# Extra routes for /api and /assets serve the dashboard SPA's API calls and
-# static files, which api@internal serves at those root-level paths.
-# ingressRoute:
-#   dashboard:
-#     enabled: true
-#     entryPoints:
-#       - web
+ingressRoute:
+  dashboard:
+    enabled: true
+    entryPoints:
+      - web
+    matchRule: PathPrefix(`/api`) || PathPrefix(`/dashboard`)
 
 metrics:
-  prometheus:
-    entryPoint: metrics
-    addEntryPointsLabels: true
-    addServicesLabels: true
-    addRoutersLabels: true
+  prometheus: null
 
 providers:
   kubernetesCRD:
@@ -67,12 +59,13 @@ extraObjects:
   - apiVersion: traefik.io/v1alpha1
     kind: Middleware
     metadata:
-      name: traefik-dashboard-rewrite
+      name: traefik-to-dashboard
       namespace: traefik
     spec:
-      replacePathRegex:
-        regex: "^/traefik/?$"
-        replacement: "/dashboard/"
+      redirectRegex:
+        regex: "^(https?://[^/]+)/traefik/?$"
+        replacement: "$1/dashboard/"
+        permanent: false
   - apiVersion: traefik.io/v1alpha1
     kind: IngressRoute
     metadata:
@@ -82,15 +75,10 @@ extraObjects:
       entryPoints:
         - web
       routes:
-        - match: PathPrefix(`/traefik`)
+        - match: Path(`/traefik`) || Path(`/traefik/`)
           kind: Rule
           middlewares:
-            - name: traefik-dashboard-rewrite
-          services:
-            - name: api@internal
-              kind: TraefikService
-        - match: PathPrefix(`/api`) || PathPrefix(`/assets`) || Path(`/favicon.ico`) || Path(`/manifest.json`)
-          kind: Rule
+            - name: traefik-to-dashboard
           services:
             - name: api@internal
               kind: TraefikService
