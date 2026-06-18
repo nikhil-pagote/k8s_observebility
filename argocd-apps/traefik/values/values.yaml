@@ -40,8 +40,9 @@ api:
 
 # Built-in dashboard IngressRoute disabled — the dashboard is exposed via the
 # manual traefik-alias IngressRoute in extraObjects, which rewrites /traefik
-# to /dashboard/ using replacePathRegex. Enabling this would create a redundant
-# route that exposes /dashboard directly without going through /traefik.
+# to /dashboard/ so the browser stays at http://localhost:30080/traefik.
+# Extra routes for /api and /assets serve the dashboard SPA's API calls and
+# static files, which api@internal serves at those root-level paths.
 # ingressRoute:
 #   dashboard:
 #     enabled: true
@@ -53,6 +54,7 @@ metrics:
     entryPoint: metrics
     addEntryPointsLabels: true
     addServicesLabels: true
+    addRoutersLabels: true
 
 providers:
   kubernetesCRD:
@@ -84,6 +86,11 @@ extraObjects:
           kind: Rule
           middlewares:
             - name: traefik-dashboard-rewrite
+          services:
+            - name: api@internal
+              kind: TraefikService
+        - match: PathPrefix(`/api`) || PathPrefix(`/assets`) || Path(`/favicon.ico`) || Path(`/manifest.json`)
+          kind: Rule
           services:
             - name: api@internal
               kind: TraefikService
