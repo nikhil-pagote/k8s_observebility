@@ -52,10 +52,6 @@ dashboards:
       gnetId: 10229
       revision: 35
       datasource: VictoriaMetrics
-    otel-collector:
-      gnetId: 15983
-      revision: 1
-      datasource: VictoriaMetrics
 
 dashboardProviders:
   dashboardproviders.yaml:
