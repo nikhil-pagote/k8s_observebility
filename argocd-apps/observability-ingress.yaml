@@ -27,7 +27,7 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: victoria-metrics-server
+            name: victoria-metrics
             port:
               number: 8428
       - path: /jaeger
