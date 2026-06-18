@@ -46,9 +46,7 @@ dashboards:
     kubernetes-views-global:
       file: dashboards/kubernetes-views-global.json
     traefik:
-      gnetId: 25330
-      revision: 1
-      datasource: VictoriaMetrics
+      file: dashboards/traefik.json
     node-exporter:
       gnetId: 1860
       revision: 22
