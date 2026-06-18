@@ -60,6 +60,20 @@ dashboards:
       revision: 35
       datasource: VictoriaMetrics
 
+extraInitContainers:
+  - name: fix-dashboard-datasources
+    image: busybox
+    command: ["/bin/sh", "-c"]
+    args:
+      - |
+        for f in /var/lib/grafana/dashboards/default/*.json; do
+          sed -i 's/\${DS__VICTORIAMETRICS-PROD-ALL}/VictoriaMetrics/g' "$f"
+          sed -i 's/\${DS_PROMETHEUS}/VictoriaMetrics/g' "$f"
+        done
+    volumeMounts:
+      - name: storage
+        mountPath: /var/lib/grafana
+
 dashboardProviders:
   dashboardproviders.yaml:
     apiVersion: 1
