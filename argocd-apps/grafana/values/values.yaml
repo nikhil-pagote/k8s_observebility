@@ -45,7 +45,7 @@ dashboards:
   default:
     kubernetes-views-global:
       gnetId: 15661
-      revision: 1
+      revision: 2
       datasource: VictoriaMetrics
     traefik:
       gnetId: 25330
