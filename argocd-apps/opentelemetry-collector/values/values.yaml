@@ -137,6 +137,13 @@ config:
                 regex: ([^:]+)(?::\d+)?
                 replacement: $1:8082
                 target_label: __address__
+              - source_labels: [__meta_kubernetes_pod_name]
+                target_label: pod
+            metric_relabel_configs:
+              - source_labels: [router]
+                regex: '.*-([^-]+)-[^-]+@kubernetes$'
+                target_label: host
+                replacement: $1
 
           - job_name: kubernetes-service-endpoints
             kubernetes_sd_configs:
