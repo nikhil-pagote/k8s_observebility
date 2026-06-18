@@ -11,7 +11,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/nikhil-pagote/k8s_observebility.git
-    targetRevision: HEAD
+    targetRevision: otel-first
     path: argocd-apps/pushgateway/chart
     helm:
       valueFiles:
