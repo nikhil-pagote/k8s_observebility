@@ -48,8 +48,12 @@ dashboards:
       gnetId: 1860
       revision: 22
       datasource: VictoriaMetrics
-    prometheus:
-      gnetId: 3662
+    victoria-metrics:
+      gnetId: 10229
+      revision: 35
+      datasource: VictoriaMetrics
+    otel-collector:
+      gnetId: 15983
       revision: 1
       datasource: VictoriaMetrics
 
