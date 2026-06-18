@@ -40,6 +40,10 @@ datasources:
 
 dashboards:
   default:
+    kube-state-metrics:
+      gnetId: 16520
+      revision: 1
+      datasource: VictoriaMetrics
     node-exporter:
       gnetId: 1860
       revision: 22
