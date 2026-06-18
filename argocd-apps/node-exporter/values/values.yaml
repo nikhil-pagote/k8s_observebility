@@ -11,7 +11,7 @@ resources:
 service:
   type: ClusterIP
   port: 9100
-
-# Expose port as named so OTel can discover via kubernetes_sd endpoints
-serviceAnnotations:
-  prometheus.io/scrape: "false"
+  # Override chart default of prometheus.io/scrape: "true" — OTel uses a
+  # dedicated endpoint SD job for node-exporter, not annotation discovery
+  annotations:
+    prometheus.io/scrape: "false"
