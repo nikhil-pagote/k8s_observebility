@@ -45,8 +45,46 @@ ingressRoute:
       - web
     matchRule: PathPrefix(`/api`) || PathPrefix(`/dashboard`)
 
+experimental:
+  otlpLogs: true
+
+log:
+  format: json
+  otlp:
+    enabled: true
+    grpc:
+      enabled: true
+      endpoint: opentelemetry-collector.observability.svc.cluster.local:4317
+      insecure: true
+
+accessLog:
+  enabled: true
+  format: json
+  otlp:
+    enabled: true
+    grpc:
+      enabled: true
+      endpoint: opentelemetry-collector.observability.svc.cluster.local:4317
+      insecure: true
+
 metrics:
-  prometheus: null
+  otlp:
+    enabled: true
+    addEntryPointsLabels: true
+    addRoutersLabels: true
+    addServicesLabels: true
+    grpc:
+      enabled: true
+      endpoint: opentelemetry-collector.observability.svc.cluster.local:4317
+      insecure: true
+
+tracing:
+  otlp:
+    enabled: true
+    grpc:
+      enabled: true
+      endpoint: opentelemetry-collector.observability.svc.cluster.local:4317
+      insecure: true
 
 providers:
   kubernetesCRD:
