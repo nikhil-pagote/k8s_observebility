@@ -32,7 +32,7 @@ kind get clusters | grep -q observability-cluster \
 
 # Local charts must be present
 missing=()
-for app in traefik grafana victoria-metrics node-exporter kube-state-metrics pushgateway jaeger loki opentelemetry-collector; do
+for app in argocd traefik grafana victoria-metrics node-exporter kube-state-metrics pushgateway jaeger loki opentelemetry-collector; do
   [ -f "argocd-apps/$app/chart/Chart.yaml" ] || missing+=("$app")
 done
 [ ${#missing[@]} -eq 0 ] \
@@ -45,10 +45,7 @@ Stop if any check fails before proceeding.
 ## Step 1 — Deploy ArgoCD via Helm
 
 ```bash
-helm repo add argo https://argoproj.github.io/argo-helm
-helm repo update argo
-
-helm upgrade --install argocd argo/argo-cd \
+helm upgrade --install argocd argocd-apps/argocd/chart \
   --namespace argocd \
   --create-namespace \
   -f argocd-apps/argocd/values/values.yaml \
