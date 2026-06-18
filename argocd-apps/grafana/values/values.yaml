@@ -82,8 +82,9 @@ extraInitContainers:
 
         ds_var = {
             "name": "datasource", "type": "datasource",
-            "pluginId": "prometheus", "hide": 0,
+            "query": "prometheus", "hide": 0,
             "label": "Datasource", "refresh": 1,
+            "regex": "", "multi": False, "includeAll": False,
             "options": [], "current": {}
         }
         var_list = d.get('templating', {}).get('list', [])
