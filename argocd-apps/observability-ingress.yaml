@@ -62,7 +62,7 @@ spec:
   entryPoints:
     - web
   routes:
-    - match: PathPrefix(`/vmui/api`)
+    - match: Host(`localhost`) && PathPrefix(`/vmui/api`)
       kind: Rule
       middlewares:
         - name: strip-vmui
