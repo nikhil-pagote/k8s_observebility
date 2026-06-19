@@ -1,0 +1,62 @@
+# Restrict Envoy inbound listeners to ports each workload actually serves.
+# Without this, Envoy intercepts ALL container ports declared in the pod spec
+# (including legacy Jaeger ports that v2 never listens on), which causes
+# connection-refused errors that inflate Kiali's inbound error rate.
+---
+apiVersion: networking.istio.io/v1
+kind: Sidecar
+metadata:
+  name: jaeger
+  namespace: observability
+spec:
+  workloadSelector:
+    labels:
+      app.kubernetes.io/name: jaeger
+  ingress:
+    - port:
+        number: 4317
+        protocol: GRPC
+        name: otlp-grpc
+    - port:
+        number: 4318
+        protocol: HTTP
+        name: otlp-http
+    - port:
+        number: 16686
+        protocol: HTTP
+        name: http-query
+    - port:
+        number: 16685
+        protocol: GRPC
+        name: grpc-query
+    - port:
+        number: 8888
+        protocol: HTTP
+        name: metrics
+    - port:
+        number: 13133
+        protocol: HTTP
+        name: healthcheck
+  egress:
+    - hosts:
+        - "./*"
+        - "istio-system/*"
+---
+apiVersion: networking.istio.io/v1
+kind: Sidecar
+metadata:
+  name: grafana
+  namespace: observability
+spec:
+  workloadSelector:
+    labels:
+      app.kubernetes.io/name: grafana
+  ingress:
+    - port:
+        number: 3000
+        protocol: HTTP
+        name: http-grafana
+  egress:
+    - hosts:
+        - "./*"
+        - "istio-system/*"
