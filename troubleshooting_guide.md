@@ -160,6 +160,17 @@ kubectl get svc -n observability | grep victoria
 
 The service must be named `victoria-metrics`. The ingress backend in `argocd-apps/observability-ingress.yaml` must match.
 
+### vmui shows "Error executing query" / JSON parse error
+
+vmui makes API calls to `/vmui/api/v1/...` which requires a Traefik IngressRoute with StripPrefix middleware. If queries fail, check the IngressRoute exists:
+
+```bash
+kubectl get ingressroute victoria-metrics-api -n observability
+kubectl get middleware strip-vmui -n observability
+```
+
+In the vmui settings (top-right gear icon), set **Server URL** to `http://localhost:30080/vmui`. This ensures API calls go to `/vmui/api/v1/query` which Traefik strips and forwards to VictoriaMetrics as `/api/v1/query`.
+
 ---
 
 ## Grafana

@@ -55,7 +55,7 @@ App (OTLP :4317/4318) ────────────────┤  OTel 
 | Path | Service | Notes |
 |---|---|---|
 | `/grafana` | Grafana | admin / admin123 |
-| `/vmui` | VictoriaMetrics UI | ad-hoc PromQL queries |
+| `/vmui` | VictoriaMetrics UI | ad-hoc PromQL queries — set Server URL to `http://localhost:30080/vmui` in vmui settings |
 | `/jaeger` | Jaeger Query UI | — |
 | `/kiali` | Kiali | mesh topology and traffic visualization |
 | `/traefik` | Traefik Dashboard | redirects to `/dashboard/` |
@@ -99,7 +99,7 @@ ArgoCD then reconciles every app in `argocd-apps/` automatically. Any subsequent
 | UI | URL | Credentials |
 |---|---|---|
 | Grafana | http://localhost:30080/grafana | admin / admin123 |
-| VictoriaMetrics | http://localhost:30080/vmui | — |
+| VictoriaMetrics | http://localhost:30080/vmui | set Server URL to `http://localhost:30080/vmui` in vmui settings |
 | Jaeger | http://localhost:30080/jaeger | — |
 | Kiali | http://localhost:30080/kiali | anonymous |
 | Traefik | http://localhost:30080/traefik | — |

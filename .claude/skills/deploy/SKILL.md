@@ -140,7 +140,7 @@ curl -sI http://localhost:30080/kiali | head -1
 | UI | URL | Credentials |
 |---|---|---|
 | Grafana | http://localhost:30080/grafana | admin / admin123 |
-| VictoriaMetrics | http://localhost:30080/vmui | — |
+| VictoriaMetrics | http://localhost:30080/vmui | set Server URL to `http://localhost:30080/vmui` in vmui settings (gear icon) |
 | Jaeger | http://localhost:30080/jaeger | — |
 | Kiali | http://localhost:30080/kiali | anonymous |
 | Traefik | http://localhost:30080/traefik | — |

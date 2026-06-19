@@ -65,7 +65,7 @@ All UIs via Traefik at `http://localhost:30080`:
 | Path | Service | Port | Notes |
 |---|---|---|---|
 | `/grafana` | grafana | 80 | sub-path routing via `serve_from_sub_path=true` |
-| `/vmui` | victoria-metrics | 8428 | no prefix strip — VM serves vmui natively at /vmui |
+| `/vmui` | victoria-metrics | 8428 | SPA served natively; `/vmui/api` routed via IngressRoute + StripPrefix → VM `/api` |
 | `/jaeger` | jaeger | 16686 | |
 | `/kiali` | kiali | 20001 | managed by Kiali's own Helm chart ingress |
 | `/traefik` | Traefik Dashboard | — | redirects to `/dashboard/` via middleware |

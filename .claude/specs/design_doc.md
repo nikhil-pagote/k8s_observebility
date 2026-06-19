@@ -141,7 +141,7 @@ Single-node mode (`victoria-metrics-single` chart). Receives all metrics via `pr
 
 - Remote write endpoint: `http://victoria-metrics.observability.svc.cluster.local:8428/api/v1/write`
 - Query API (Prometheus-compatible): `http://victoria-metrics.observability.svc.cluster.local:8428`
-- UI path: `/vmui` (no prefix strip — VictoriaMetrics serves this path natively)
+- UI path: `/vmui` — SPA served natively by VictoriaMetrics. API calls from vmui go to `/vmui/api/v1/...`; a Traefik IngressRoute with `strip-vmui` Middleware strips `/vmui` before forwarding to VictoriaMetrics. **In vmui settings, set Server URL to `http://localhost:30080/vmui`.**
 - All scraped metrics carry the label `origin_prometheus=otel-collector` (set via `external_labels` on the remote_write exporter)
 
 ---
