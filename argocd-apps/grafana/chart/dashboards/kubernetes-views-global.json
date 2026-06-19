@@ -3156,25 +3156,6 @@
           "range": false,
           "refId": "C",
           "step": 10
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "exemplar": false,
-          "expr": "count by (namespace,persistentvolumeclaim)(kube_pod_spec_volumes_persistentvolumeclaims_info{origin_prometheus=~\"$origin_prometheus\"})",
-          "format": "table",
-          "hide": false,
-          "instant": true,
-          "interval": "",
-          "intervalFactor": 1,
-          "legendFormat": "__auto",
-          "metric": "container_memory_usage:sort_desc",
-          "range": false,
-          "refId": "D",
-          "step": 10
         }
       ],
       "title": "PVC Storage Usage",
