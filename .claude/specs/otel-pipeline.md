@@ -1,38 +1,37 @@
 # OTel Pipeline Spec
 
-## Collector Pipelines
+> Image: `otel/opentelemetry-collector-contrib` — contrib required for `prometheusremotewrite`, `otlphttp/loki`, `prometheus` receiver, and `k8s_events` receiver.
+> One Deployment handles all three pillars. No DaemonSet, no OTel Operator.
+> `memory_limiter` must precede `batch` so it can shed load before data is buffered.
+> OTel pushes metrics to VictoriaMetrics via remote_write — VictoriaMetrics does not scrape anything.
 
-### OTel Collector (single Deployment — all three pillars)
-
-One Deployment handles metrics, traces, and logs. No DaemonSet.
+## Pipelines
 
 ```
 Receivers:
-  otlp:
-    grpc: 0.0.0.0:4317
-    http: 0.0.0.0:4318
-  prometheus: (kubernetes_sd scrape configs for pods/endpoints/nodes)
+  otlp:      grpc :4317, http :4318
+  prometheus: kubernetes_sd scrape configs (see Scrape Jobs)
+  k8s_events: watches Kubernetes API for cluster events (all namespaces)
 
-Processors (order matters — memory_limiter must be first):
-  memory_limiter: limit=1500MiB, check_interval=1s
-  resource: k8s.cluster.name=observability-cluster
-  batch: timeout=1s, send_batch_size=1024
+Processors:
+  memory_limiter:    limit=1500MiB, check_interval=1s  [must be first]
+  resource:          adds k8s.cluster.name=observability-cluster
+  resource/k8sevents: adds k8s.cluster.name + service.name=k8sevents (for k8s_events pipeline only)
+  transform/traefik_labels: promotes pod/host from resource attrs to datapoint attrs (metrics only)
+  batch:             timeout=1s, send_batch_size=1024
 
 Exporters:
   prometheusremotewrite: http://victoria-metrics.observability.svc.cluster.local:8428/api/v1/write
-  otlp/jaeger: jaeger.observability.svc.cluster.local:4317   (OTLP gRPC — Jaeger v2 receiver)
-  otlphttp/loki: http://loki.observability.svc.cluster.local:3100/otlp
-  debug: verbosity=detailed
+  otlp/jaeger:           jaeger-collector.observability.svc.cluster.local:14250 (OTLP gRPC)
+  otlphttp/loki:         http://loki.observability.svc.cluster.local:3100/otlp
+  debug:                 verbosity=detailed
 
 Pipelines:
-  metrics: [otlp, prometheus] → [memory_limiter, resource, batch] → [prometheusremotewrite, debug]
-  traces:  [otlp]             → [memory_limiter, resource, batch] → [otlp/jaeger, debug]
-  logs:    [otlp]             → [memory_limiter, resource, batch] → [otlphttp/loki, debug]
+  metrics:       [otlp, prometheus]  → [memory_limiter, resource, transform/traefik_labels, batch] → [prometheusremotewrite, debug]
+  traces:        [otlp]              → [memory_limiter, resource, batch]                           → [otlp/jaeger, debug]
+  logs:          [otlp]              → [memory_limiter, resource, batch]                           → [otlphttp/loki, debug]
+  logs/k8sevents:[k8s_events]        → [memory_limiter, resource/k8sevents, batch]                 → [otlphttp/loki]
 ```
-
-> Image: `otel/opentelemetry-collector-contrib` (contrib required for prometheusremotewrite, otlphttp/loki, and prometheus receiver).
-> OTel pushes metrics to VictoriaMetrics via remote_write — VictoriaMetrics does not scrape anything.
-> `memory_limiter` must precede `batch` so it can shed load before data is buffered.
 
 ## Scrape Jobs
 
@@ -71,3 +70,4 @@ env:
 | No traces in Jaeger | Check logs for `otlp/jaeger` errors; verify `jaeger` service exists in observability ns |
 | No logs in Loki | Check logs for `otlphttp/loki` errors; verify Loki pod running and `/ready` returns 200 |
 | Grafana /grafana 404 | Check `serve_from_sub_path=true` and `root_url` in Grafana Helm values |
+| No K8s events in Loki | Check `k8s_events` receiver started: logs should show `starting to watch namespaces for the events`; verify RBAC includes `events` resource |
