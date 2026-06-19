@@ -100,6 +100,15 @@ Architecture and pipeline design: `.claude/specs/architecture.md`, `.claude/spec
 
 Technical implementation details: `.claude/specs/design_doc.md`
 
+## Docs
+
+User-facing documentation in `docs/`:
+
+| File | Contents |
+|---|---|
+| `docs/troubleshooting_guide.md` | Stack-specific troubleshooting — Kind + Podman, ArgoCD, OTel, VictoriaMetrics, Loki, Jaeger, Traefik |
+| `docs/promql.md` | PromQL query reference for all scrape jobs (node, cAdvisor, Istio, Traefik, OTel, VM self-metrics) |
+
 ## Subagent briefings
 
 Briefing files for parallel subagents live in `.claude/agents/`:
