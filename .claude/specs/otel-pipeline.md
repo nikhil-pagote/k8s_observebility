@@ -42,6 +42,7 @@ Pipelines:
 | `opentelemetry-collector` | opentelemetry-collector.observability.svc:8888 | static |
 | `node-exporter` | kubernetes_sd endpoints, ns=observability | kubernetes_sd |
 | `kubernetes-cadvisor` | kubelet /metrics/cadvisor via API server proxy | kubernetes_sd nodes |
+| `kubernetes-kubelet` | kubelet /metrics via API server proxy (filtered to `kubelet_volume_stats_*`) | kubernetes_sd nodes |
 | `traefik` | kubernetes_sd pods, ns=traefik, port 8082 | kubernetes_sd |
 | `kubernetes-pods` | pods with `prometheus.io/scrape: "true"` annotation | kubernetes_sd |
 | `kubernetes-service-endpoints` | services with `prometheus.io/scrape: "true"` annotation | kubernetes_sd |

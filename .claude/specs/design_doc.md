@@ -65,7 +65,7 @@ Wired into Grafana via `dashboards.default` in `values/values.yaml`.
 
 | values.yaml key | gnetId | Revision | Datasource |
 |---|---|---|---|
-| `victoria-metrics` | 10229 | 35 | VictoriaMetrics |
+| `victoria-metrics` | 10229 | 54 | VictoriaMetrics |
 
 ### Traefik dashboard — scrape_interval fix
 
@@ -79,11 +79,11 @@ The dashboard (grafana.com ID 17882) was designed for `kubernetes-event-exporter
 
 | Old (kubernetes-event-exporter) | New (OTel k8s_events) |
 |---|---|
-| `{container="event-exporter"}` | `{service_name="k8sevents", k8s_namespace_name=~"$namespace"}` |
+| `{container="event-exporter"}` | `{service_name="k8sevents"} \| k8s_namespace_name=~"$namespace"` |
 | `\| json \| __error__=\`\`` | _(removed — no JSON body)_ |
-| `\| metadata_namespace=~"$namespace"` | _(moved to stream selector)_ |
+| `\| metadata_namespace=~"$namespace"` | `\| k8s_namespace_name=~"$namespace"` (pipeline filter, not stream selector — Node events have no namespace label) |
 | `\| reason="X"` | `\| k8s_event_reason="X"` |
-| `\| type="Warning"` | `\| detected_level="warn"` |
+| `\| type="Warning"` | `\| detected_level="Warning"` (OTel emits severity_text="Warning" capital-W; Loki stores as-is) |
 | `sum by (reason)` | `sum by (k8s_event_reason)` |
 | `sum by (metadata_namespace)` | `sum by (k8s_namespace_name)` |
 | `sum by (source_component)` | `sum by (k8s_source_component)` |
@@ -158,7 +158,7 @@ Events arrive in Loki with:
 - Stream label `service_name=k8sevents` (set via `resource/k8sevents` processor)
 - Stream label `k8s_namespace_name=<namespace>` (from `k8s.namespace.name` resource attribute)
 - Structured metadata: `k8s_event_reason`, `k8s_object_kind`, `k8s_object_name`, `k8s_source_component`
-- Severity: Normal → `detected_level=info`, Warning → `detected_level=warn`
+- Severity: Normal → `detected_level=info`, Warning → `detected_level=Warning` (OTel passes severity_text verbatim; Loki stores capital-W)
 
 RBAC required: `events` resource must be in the OTel ClusterRole (under `clusterRole.rules` in `values/values.yaml`).
 

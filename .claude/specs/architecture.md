@@ -16,7 +16,8 @@ A local Kubernetes observability POC using **OpenTelemetry** as the unified coll
 
 ```
 node-exporter  ──────────────────────────────┐
-cAdvisor (kubelet) ──────────────────────────┤ OTel prometheus receiver (pull)
+cAdvisor (kubelet /metrics/cadvisor) ────────┤ OTel prometheus receiver (pull)
+kubelet  (kubelet /metrics) ─────────────────┤   (volume stats for PVCs)
 annotated pods/endpoints ────────────────────┘
                                              │
 Kubernetes API (state) ───────────────────── ┤ k8s_cluster receiver (watch)
