@@ -40,7 +40,7 @@ resources:
 
 config:
   receivers:
-    k8sevents:
+    k8s_events:
       auth_type: serviceAccount
 
     otlp:
@@ -218,6 +218,6 @@ config:
         processors: [memory_limiter, resource, batch]
         exporters: [otlphttp/loki, debug]
       logs/k8sevents:
-        receivers: [k8sevents]
+        receivers: [k8s_events]
         processors: [memory_limiter, resource/k8sevents, batch]
         exporters: [otlphttp/loki]
