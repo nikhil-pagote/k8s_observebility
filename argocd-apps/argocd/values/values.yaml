@@ -4,6 +4,13 @@ configs:
     server.insecure: "true"
     # Sub-path routing: ArgoCD is served at /argocd via Traefik IngressRoute
     server.rootpath: "/argocd"
+  cm:
+    # Kind/NodePort clusters: Traefik never populates Ingress ADDRESS — mark Ingress as always Healthy
+    resource.customizations.health.networking.k8s.io_Ingress: |
+      hs = {}
+      hs.status = "Healthy"
+      hs.message = "Ingress"
+      return hs
 
 server:
   resources:
