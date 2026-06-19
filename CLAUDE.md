@@ -1,3 +1,7 @@
+---
+description: Project-wide guidance for Claude Code — container runtime, cluster operations, architecture, skills, agent briefings, and doc update rules for this k8s observability stack
+---
+
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
