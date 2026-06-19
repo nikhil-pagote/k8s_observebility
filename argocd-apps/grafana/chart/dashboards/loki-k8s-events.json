@@ -215,7 +215,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "{container=\"event-exporter\"} |~ `(?i)$contains` | json | __error__=`` | metadata_namespace=~`$namespace`",
+          "expr": "{service_name=\"k8sevents\", k8s_namespace_name=~\"$namespace\"} |~ `(?i)$contains`",
           "queryType": "range",
           "refId": "A"
         }
@@ -395,7 +395,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum by (type) (count_over_time({container=\"event-exporter\"} | json | __error__=`` | metadata_namespace=~`$namespace` [$__interval]))",
+          "expr": "sum by (detected_level) (count_over_time({service_name=\"k8sevents\", k8s_namespace_name=~\"$namespace\"} [$__interval]))",
           "legendFormat": "{{type}}",
           "queryType": "range",
           "refId": "A"
@@ -507,7 +507,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({container=\"event-exporter\"} | json | __error__=`` | metadata_namespace=~`$namespace` | type=\"Warning\" [$__interval]))",
+          "expr": "sum(count_over_time({service_name=\"k8sevents\", k8s_namespace_name=~\"$namespace\"} | detected_level=\"warn\" [$__interval]))",
           "legendFormat": "Warning",
           "queryType": "range",
           "range": true,
@@ -576,7 +576,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({container=\"event-exporter\"} |= \"Error: ImagePullBackOff\" | json | __error__=`` | metadata_namespace=~`$namespace` | reason=\"Failed\"  | line_format \"{{ .message }}\" [$__interval]))",
+          "expr": "sum(count_over_time({service_name=\"k8sevents\", k8s_namespace_name=~\"$namespace\"} |= \"ImagePullBackOff\" | k8s_event_reason=\"Failed\" [$__interval]))",
           "legendFormat": "",
           "queryType": "range",
           "range": true,
@@ -645,7 +645,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({container=\"event-exporter\"} |= \"failed liveness probe\" | json | __error__=`` | metadata_namespace=~`$namespace` | reason=\"Killing\" [$__interval]))",
+          "expr": "sum(count_over_time({service_name=\"k8sevents\", k8s_namespace_name=~\"$namespace\"} |= \"failed liveness probe\" | k8s_event_reason=\"Killing\" [$__interval]))",
           "queryType": "range",
           "range": true,
           "refId": "A"
@@ -713,7 +713,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({container=\"event-exporter\"} | json | __error__=`` | metadata_namespace=~`$namespace` | reason=\"FailedMount\" [$__interval]))",
+          "expr": "sum(count_over_time({service_name=\"k8sevents\", k8s_namespace_name=~\"$namespace\"} | k8s_event_reason=\"FailedMount\" [$__interval]))",
           "queryType": "range",
           "range": true,
           "refId": "A"
@@ -783,7 +783,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({container=\"event-exporter\"} | json | __error__=`` | metadata_namespace=~`$namespace` | reason=\"FailedScheduling\" [$__interval]))",
+          "expr": "sum(count_over_time({service_name=\"k8sevents\", k8s_namespace_name=~\"$namespace\"} | k8s_event_reason=\"FailedScheduling\" [$__interval]))",
           "queryType": "range",
           "range": true,
           "refId": "A"
@@ -851,7 +851,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({container=\"event-exporter\"} | json | __error__=`` | metadata_namespace=~`$namespace` | reason=\"OOMKilling\" [$__interval]))",
+          "expr": "sum(count_over_time({service_name=\"k8sevents\", k8s_namespace_name=~\"$namespace\"} | k8s_event_reason=\"OOMKilling\" [$__interval]))",
           "queryType": "range",
           "range": true,
           "refId": "A"
@@ -916,7 +916,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({container=\"event-exporter\"} | json | __error__=`` | metadata_namespace=~`$namespace` | reason=\"BackOff\" [$__interval]))",
+          "expr": "sum(count_over_time({service_name=\"k8sevents\", k8s_namespace_name=~\"$namespace\"} | k8s_event_reason=\"BackOff\" [$__interval]))",
           "queryType": "range",
           "range": true,
           "refId": "A"
@@ -984,7 +984,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({container=\"event-exporter\"} |= \"Marking for deletion Pod\" | json | __error__=`` | metadata_namespace=~`$namespace` | reason=\"TaintManagerEviction\" [$__interval]))",
+          "expr": "sum(count_over_time({service_name=\"k8sevents\", k8s_namespace_name=~\"$namespace\"} |= \"Marking for deletion Pod\" | k8s_event_reason=\"TaintManagerEviction\" [$__interval]))",
           "queryType": "range",
           "range": true,
           "refId": "A"
@@ -1049,7 +1049,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({container=\"event-exporter\"} | json | __error__=`` | metadata_namespace=~`$namespace` | reason=\"SystemOOM\" [$__interval]))",
+          "expr": "sum(count_over_time({service_name=\"k8sevents\", k8s_namespace_name=~\"$namespace\"} | k8s_event_reason=\"SystemOOM\" [$__interval]))",
           "queryType": "range",
           "range": true,
           "refId": "A"
@@ -1209,7 +1209,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum by (reason) (count_over_time({container=\"event-exporter\"} | json | __error__=`` | metadata_namespace=~`$namespace` [$__interval]))",
+              "expr": "sum by (k8s_event_reason) (count_over_time({service_name=\"k8sevents\", k8s_namespace_name=~\"$namespace\"} [$__interval]))",
               "instant": false,
               "legendFormat": "{{reason}}",
               "queryType": "range",
@@ -1277,7 +1277,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum by (metadata_namespace) (count_over_time({container=\"event-exporter\"} | json | __error__=`` | metadata_namespace=~`$namespace` [$__interval]))",
+              "expr": "sum by (k8s_namespace_name) (count_over_time({service_name=\"k8sevents\", k8s_namespace_name=~\"$namespace\"} [$__interval]))",
               "legendFormat": "{{metadata_namespace}}",
               "queryType": "range",
               "range": true,
@@ -1342,7 +1342,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum by (source_component) (count_over_time({container=\"event-exporter\"} | json | __error__=`` | metadata_namespace=~`$namespace` [$__interval]))",
+              "expr": "sum by (k8s_source_component) (count_over_time({service_name=\"k8sevents\", k8s_namespace_name=~\"$namespace\"} [$__interval]))",
               "legendFormat": "{{source_component}}",
               "queryType": "range",
               "range": true,
@@ -1409,7 +1409,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum by (involvedObject_kind) (count_over_time({container=\"event-exporter\"} | json | __error__=`` | metadata_namespace=~`$namespace` [$__interval]))",
+              "expr": "sum by (k8s_object_kind) (count_over_time({service_name=\"k8sevents\", k8s_namespace_name=~\"$namespace\"} [$__interval]))",
               "legendFormat": "{{involvedObject_kind}}",
               "queryType": "range",
               "range": true,
@@ -1462,7 +1462,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "{container=\"event-exporter\"} |~ `(?i)$contains` | json | __error__=`` | metadata_namespace=~`$namespace`",
+              "expr": "{service_name=\"k8sevents\", k8s_namespace_name=~\"$namespace\"} |~ `(?i)$contains`",
               "queryType": "range",
               "range": true,
               "refId": "A"
@@ -1515,9 +1515,9 @@
         "name": "namespace",
         "options": [],
         "query": {
-          "label": "namespace",
+          "label": "k8s_namespace_name",
           "refId": "LokiVariableQueryEditor-VariableQuery",
-          "stream": "",
+          "stream": "{service_name=\"k8sevents\"}",
           "type": 1
         },
         "refresh": 2,

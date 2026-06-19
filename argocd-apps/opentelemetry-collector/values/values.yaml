@@ -25,7 +25,7 @@ clusterRole:
   create: true
   rules:
     - apiGroups: [""]
-      resources: ["nodes", "nodes/metrics", "nodes/proxy", "services", "endpoints", "pods", "namespaces"]
+      resources: ["nodes", "nodes/metrics", "nodes/proxy", "services", "endpoints", "pods", "namespaces", "events"]
       verbs: ["get", "list", "watch"]
     - nonResourceURLs: ["/metrics", "/metrics/cadvisor"]
       verbs: ["get"]
@@ -40,6 +40,9 @@ resources:
 
 config:
   receivers:
+    k8sevents:
+      auth_type: serviceAccount
+
     otlp:
       protocols:
         grpc:
@@ -162,6 +165,15 @@ config:
         - key: k8s.cluster.name
           value: "observability-cluster"
           action: upsert
+
+    resource/k8sevents:
+      attributes:
+        - key: k8s.cluster.name
+          value: "observability-cluster"
+          action: upsert
+        - key: service.name
+          value: "k8sevents"
+          action: upsert
     transform/traefik_labels:
       metric_statements:
         - context: datapoint
@@ -205,3 +217,7 @@ config:
         receivers: [otlp]
         processors: [memory_limiter, resource, batch]
         exporters: [otlphttp/loki, debug]
+      logs/k8sevents:
+        receivers: [k8sevents]
+        processors: [memory_limiter, resource/k8sevents, batch]
+        exporters: [otlphttp/loki]
