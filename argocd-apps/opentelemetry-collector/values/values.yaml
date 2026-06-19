@@ -29,6 +29,9 @@ clusterRole:
       verbs: ["get", "list", "watch"]
     - nonResourceURLs: ["/metrics", "/metrics/cadvisor"]
       verbs: ["get"]
+    - apiGroups: [""]
+      resources: ["replicationcontrollers", "resourcequotas"]
+      verbs: ["get", "list", "watch"]
     - apiGroups: ["apps"]
       resources: ["daemonsets", "deployments", "replicasets", "statefulsets"]
       verbs: ["get", "list", "watch"]
@@ -51,14 +54,6 @@ config:
   receivers:
     k8s_events:
       auth_type: serviceAccount
-
-    kubeletstats:
-      collection_interval: 30s
-      auth_type: serviceAccount
-      insecure_skip_verify: true
-      metric_groups: [node, pod, container]
-      k8s_api_config:
-        auth_type: serviceAccount
 
     k8s_cluster:
       collection_interval: 30s
@@ -233,7 +228,7 @@ config:
         processors: [memory_limiter, resource, batch]
         exporters: [debug, otlp/jaeger]
       metrics:
-        receivers: [otlp, prometheus, kubeletstats, k8s_cluster]
+        receivers: [otlp, prometheus, k8s_cluster]
         processors: [memory_limiter, resource, transform/traefik_labels, batch]
         exporters: [prometheusremotewrite, debug]
       logs:
