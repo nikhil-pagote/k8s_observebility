@@ -79,15 +79,6 @@ config:
             static_configs:
               - targets: ['opentelemetry-collector.observability.svc.cluster.local:8888']
 
-          - job_name: pushgateway
-            static_configs:
-              - targets: ['pushgateway.observability.svc.cluster.local:9091']
-            honor_labels: true
-
-          - job_name: kube-state-metrics
-            static_configs:
-              - targets: ['kube-state-metrics.observability.svc.cluster.local:8080']
-
           - job_name: node-exporter
             kubernetes_sd_configs:
               - role: endpoints
