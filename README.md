@@ -1,6 +1,6 @@
 # Kubernetes Observability Stack
 
-A Kubernetes observability POC using **OpenTelemetry** as the unified collection layer, deployed via GitOps (ArgoCD), and exposed through a single Traefik ingress on path-based routing.
+A Kubernetes observability POC using **OpenTelemetry** as the unified collection layer, deployed via GitOps (ArgoCD), and exposed through a single Traefik ingress on path-based routing. **Istio** runs as a service mesh (Envoy sidecar mode) providing in-cluster mTLS and traffic observability, visualized by **Kiali**.
 
 ## Architecture
 
@@ -46,6 +46,8 @@ App (OTLP :4317/4318) ────────────────┤  OTel 
 | **Loki** | observability | Log storage (single-binary, filesystem) |
 | **Jaeger** | observability | Distributed trace storage and query UI |
 | **Grafana** | observability | Unified dashboards — correlates metrics, traces, and logs |
+| **istiod** | istio-system | Istio control plane — Envoy sidecar injection, mTLS, traffic policy |
+| **Kiali** | observability | Istio mesh visualization — topology, traffic flow, health |
 | **ArgoCD** | argocd | GitOps reconciler for all stack components |
 
 ### Ingress URL map
@@ -55,6 +57,7 @@ App (OTLP :4317/4318) ────────────────┤  OTel 
 | `/grafana` | Grafana | admin / admin123 |
 | `/vmui` | VictoriaMetrics UI | ad-hoc PromQL queries |
 | `/jaeger` | Jaeger Query UI | — |
+| `/kiali` | Kiali | mesh topology and traffic visualization |
 | `/traefik` | Traefik Dashboard | redirects to `/dashboard/` |
 | `/argocd` | ArgoCD Server | admin / see below |
 
@@ -85,11 +88,11 @@ source .envrc
 ### 2. Deploy the stack
 
 ```bash
-/deploy --step 1   # Install ArgoCD via Helm
-/deploy --step 3   # Apply ArgoCD Application manifests
+/deploy --step 1             # Install ArgoCD via Helm
+kubectl apply -f root-app.yaml   # Bootstrap the App of Apps (once only)
 ```
 
-ArgoCD reads each app's local `chart/` and `values/values.yaml` and deploys them.
+ArgoCD then reconciles every app in `argocd-apps/` automatically. Any subsequent change — push to `istio-envoy` and ArgoCD picks it up.
 
 ### 3. Access the UIs
 
@@ -98,6 +101,7 @@ ArgoCD reads each app's local `chart/` and `values/values.yaml` and deploys them
 | Grafana | http://localhost:30080/grafana | admin / admin123 |
 | VictoriaMetrics | http://localhost:30080/vmui | — |
 | Jaeger | http://localhost:30080/jaeger | — |
+| Kiali | http://localhost:30080/kiali | anonymous |
 | Traefik | http://localhost:30080/traefik | — |
 | ArgoCD | http://localhost:30080/argocd | admin / `kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath='{.data.password}' \| base64 -d` |
 
@@ -180,6 +184,9 @@ kubectl get ingressroute -A
 | Loki | 512 MB | 500m |
 | OTel Collector | 512 MB | 500m |
 | node-exporter | 128 MB | 250m |
+| istiod | 1 GB | 500m |
+| Kiali | 512 MB | 500m |
+| Envoy sidecar (per pod) | ~50 MB | ~50m |
 
 ---
 

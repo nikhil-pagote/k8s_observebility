@@ -6,13 +6,23 @@ Technical implementation details, constraints, and known quirks. Companion to `a
 
 ## ArgoCD Application Management
 
-All ArgoCD `Application` CRDs live in `argocd-apps/<app>/app.yaml`. They are applied manually via:
+### App of Apps pattern
+
+`root-app.yaml` (repo root) is applied once manually to bootstrap ArgoCD self-management:
 ```bash
-kubectl apply -k argocd-apps/          # apply all apps
-kubectl apply -f argocd-apps/<app>/app.yaml  # apply one app
+kubectl apply -f root-app.yaml
 ```
 
-**These files are NOT self-managed by ArgoCD.** A git push alone does not update the in-cluster Application CRD — `kubectl apply` must be run after any change to an `app.yaml`.
+After that, ArgoCD watches `argocd-apps/kustomization.yaml`. Any `app.yaml` listed there is automatically reconciled on every git push to `istio-envoy`. Adding a new app = create `argocd-apps/<app>/app.yaml` + add it to `kustomization.yaml`, push — done.
+
+**ArgoCD itself is NOT in `kustomization.yaml`.** It is managed directly via Helm:
+```bash
+helm upgrade argocd argocd-apps/argocd/chart -n argocd -f argocd-apps/argocd/values/values.yaml
+```
+After any ArgoCD values change, restart the application-controller to reload the configmap:
+```bash
+kubectl rollout restart statefulset/argocd-application-controller -n argocd
+```
 
 ### Sync options
 
@@ -21,13 +31,26 @@ All apps use `automated` sync with `prune: true` and `selfHeal: true`. App-speci
 | App | Extra syncOptions | Reason |
 |---|---|---|
 | `grafana` | `ServerSideApply=true` | Total dashboard ConfigMap size exceeds the 262KB `kubectl.kubernetes.io/last-applied-configuration` annotation limit |
+| `istio-base` | `ServerSideApply=true` | Istio CRDs are large; SSA bypasses the annotation size limit without Replace |
+| `gateway-api-crds` | `ServerSideApply=true`, `Replace=true` | Vendored YAML; Replace ensures clean CRD replacement on update |
+
+### Global ArgoCD config (argocd-cm)
+
+Configured in `argocd-apps/argocd/values/values.yaml` under `configs.cm`:
+
+**Ingress health:** Traefik in NodePort mode never populates `status.loadBalancer` ADDRESS. ArgoCD's default Ingress health check requires ADDRESS and blocks indefinitely. Custom Lua returns Healthy unconditionally for all Ingress resources.
+
+**Webhook ignoreDifferences:** istiod modifies `ValidatingWebhookConfiguration` and `MutatingWebhookConfiguration` at runtime — injects `caBundle`, changes `failurePolicy` (`Ignore` → `Fail`), and Kubernetes adds defaults (`matchPolicy`, `namespaceSelector`, `objectSelector`, `port`). Global `jqPathExpressions` exclude all these fields from the ArgoCD diff so istio-base and istio-istiod stay Synced. Do NOT use `Replace=true` alongside `ignoreDifferences` for Istio apps — Replace clears the caBundle on every sync, causing an infinite sync loop.
 
 ### Sync-wave order
 
 | Wave | Apps |
 |---|---|
-| 0 | traefik |
-| 1 | victoria-metrics, grafana, jaeger, loki, opentelemetry-collector, node-exporter |
+| -2 | gateway-api-crds |
+| -1 | istio-base |
+| 0 | istio-istiod, traefik |
+| 1 | istio-mesh-config, victoria-metrics, grafana, jaeger, loki, opentelemetry-collector, node-exporter |
+| 2 | kiali |
 
 ---
 
@@ -184,6 +207,45 @@ Only node-exporter is deployed as a Prometheus exporter; it deploys into the `ob
 Kubernetes object state (formerly kube-state-metrics) is now provided by the OTel `k8s_cluster` receiver, emitting `k8s_*` metrics directly. Pushgateway was removed — batch jobs should send OTLP to the collector on `:4317`.
 
 node-exporter runs as a DaemonSet — one pod per node. Verify coverage with `kubectl get ds -n observability`.
+
+---
+
+## Istio (Envoy sidecar mode)
+
+Istio runs as a service mesh in the `observability` namespace. Traefik remains the ingress controller; Istio handles in-cluster pod-to-pod traffic only.
+
+**Namespace labeling:** `istio-mesh-config` app (wave 1) applies a Namespace manifest that adds `istio-injection: enabled` to the `observability` namespace. Existing pods need a rolling restart after labeling — new pods are injected automatically.
+
+**Do NOT label** `traefik` or `argocd` namespaces. Injecting sidecars into Traefik causes double-proxying and breaks IngressRoute health. Injecting into ArgoCD creates bootstrap ordering risk.
+
+**PeerAuthentication:** PERMISSIVE (default). Mesh pods accept both mTLS (from other mesh pods) and plain HTTP (from Traefik, which is outside the mesh). No explicit PeerAuthentication resource is needed for the POC.
+
+**Charts:**
+- `istio/base` — Istio CRDs and cluster-level RBAC (`istio-system`)
+- `istio/istiod` — control plane, sidecar injector webhook (`istio-system`)
+- `gateway-api-crds` — vendored Gateway API CRDs v1.2.1 (istiod registers a GatewayClass controller at startup; CRDs must exist)
+
+**Sidecar injection:** Each pod in the labeled namespace gets `istio-proxy` (Envoy) and `istio-init` containers injected by istiod's MutatingWebhookConfiguration. Pods show `2/2` READY (or 3/3 if the app itself has a sidecar). node-exporter DaemonSet pods also get sidecars — OTel scraping still works.
+
+**Activating the mesh after deploy:**
+```bash
+kubectl rollout restart deployment -n observability
+kubectl rollout restart daemonset -n observability
+kubectl get pods -n observability   # verify 2/2 READY
+```
+
+---
+
+## Kiali
+
+Mesh visualization UI. Deployed in the `observability` namespace (same namespace as the services it watches and the Ingress that routes to it).
+
+- **Auth:** anonymous (`auth.strategy: anonymous`)
+- **Metrics source:** VictoriaMetrics at `http://victoria-metrics.observability.svc.cluster.local:8428` (Prometheus-compatible)
+- **Traces source:** Jaeger at `http://jaeger.observability.svc.cluster.local:16686` (HTTP, not gRPC)
+- **Grafana link:** `http://localhost:30080/grafana` (external) + `http://grafana.observability.svc.cluster.local:80` (in-cluster)
+- **Ingress:** managed by Kiali's own Helm chart (`deployment.ingress.override_yaml`) — NOT in `observability-ingress.yaml`. This avoids Traefik rejecting the shared Ingress when Kiali is not yet deployed.
+- **Istio root namespace:** `istio-system`
 
 ---
 

@@ -26,6 +26,7 @@ NodePort: `30080 → :80`, `30443 → :443`. All UIs route through Traefik:
 | `/grafana` | grafana.observability:80 | sub-path routing |
 | `/vmui` | victoria-metrics.observability:8428 | no prefix strip |
 | `/jaeger` | jaeger.observability:16686 | |
+| `/kiali` | kiali.observability:20001 | defined in Kiali's Helm chart, not observability-ingress.yaml |
 | `/traefik` | Traefik dashboard | redirects to `/dashboard/` |
 | `/argocd` | argocd-server.argocd:80 | cross-namespace IngressRoute |
 
@@ -36,7 +37,7 @@ argocd-apps/traefik/
   values/values.yaml
   chart/                         # Vendored traefik/traefik chart
 
-argocd-apps/observability-ingress.yaml   # IngressRoute definitions for all observability UIs
+argocd-apps/observability-ingress.yaml   # Ingress for /grafana, /vmui, /jaeger (NOT /kiali — see Kiali chart)
 ```
 
 ## Skills

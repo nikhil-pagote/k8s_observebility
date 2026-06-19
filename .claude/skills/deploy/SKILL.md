@@ -1,5 +1,5 @@
 ---
-description: Deploy the observability stack — ArgoCD via Helm, then ArgoCD manages all apps from argocd-apps/
+description: Deploy the observability stack — ArgoCD via Helm, then bootstrap the App of Apps so ArgoCD manages everything else
 argument-hint: "[--step <1-4>]"
 allowed-tools:
   - Bash
@@ -9,8 +9,8 @@ allowed-tools:
 Deploy flow:
 1. Pre-flight checks
 2. Helm installs ArgoCD onto the Kind cluster
-3. ArgoCD Application CRDs are applied from `argocd-apps/`
-4. ArgoCD reads each app's local `chart/` and `values/values.yaml` and deploys them
+3. Bootstrap the App of Apps (`root-app.yaml`) — ArgoCD then reconciles all apps from `argocd-apps/`
+4. Monitor deployment and activate Istio sidecars
 
 Pass `--step N` to run only a specific step.
 
@@ -32,12 +32,13 @@ kind get clusters | grep -q observability-cluster \
 
 # Local charts must be present
 missing=()
-for app in argocd traefik grafana victoria-metrics node-exporter kube-state-metrics pushgateway jaeger loki opentelemetry-collector; do
+for app in argocd traefik grafana victoria-metrics node-exporter jaeger loki opentelemetry-collector istio-base istio-istiod kiali; do
   [ -f "argocd-apps/$app/chart/Chart.yaml" ] || missing+=("$app")
 done
+[ -f "argocd-apps/gateway-api-crds/manifests/standard-install.yaml" ] || missing+=("gateway-api-crds/manifests")
 [ ${#missing[@]} -eq 0 ] \
   && echo "charts: OK" \
-  || echo "charts: MISSING — run /helm add-repos then /helm pull: ${missing[*]}"
+  || echo "charts: MISSING — run /helm pull: ${missing[*]}"
 ```
 
 Stop if any check fails before proceeding.
@@ -63,7 +64,7 @@ kubectl get secret argocd-initial-admin-secret -n argocd \
 
 ## Step 2 — Register Git repo with ArgoCD
 
-ArgoCD needs access to this Git repo to read the local `chart/` and `values/` directories.
+ArgoCD needs access to this Git repo to read app manifests and charts.
 
 ```bash
 # Install ArgoCD CLI if not present
@@ -84,34 +85,65 @@ argocd repo add https://github.com/nikhil-pagote/k8s_observebility.git
 kill $ARGOCD_PF_PID 2>/dev/null
 ```
 
-## Step 3 — Apply ArgoCD Application manifests
+## Step 3 — Bootstrap the App of Apps
 
-This tells ArgoCD what apps to deploy and where to find their charts and values:
+Apply `root-app.yaml` once. ArgoCD then takes ownership of every app listed in `argocd-apps/kustomization.yaml`:
 
 ```bash
-kubectl apply -k argocd-apps/
+kubectl apply -f root-app.yaml
 kubectl get applications -n argocd
 ```
 
-ArgoCD will now deploy all apps from the local `chart/` directories using `values/values.yaml`.
+ArgoCD reconciles in sync-wave order:
 
-Sync order (controlled by `argocd.argoproj.io/sync-wave`):
-- Wave 0: Traefik
-- Wave 1: VictoriaMetrics, Grafana, node-exporter, kube-state-metrics, Jaeger, Loki, OTel Collector
+| Wave | Apps |
+|---|---|
+| -2 | gateway-api-crds |
+| -1 | istio-base |
+| 0 | istio-istiod, traefik |
+| 1 | istio-mesh-config, victoria-metrics, grafana, jaeger, loki, opentelemetry-collector, node-exporter |
+| 2 | kiali |
 
-## Step 4 — Monitor deployment
+After this bootstrap, all future changes are GitOps — push to `istio-envoy` and ArgoCD picks them up automatically.
+
+**ArgoCD itself is NOT managed by the App of Apps.** To update ArgoCD config:
+```bash
+helm upgrade argocd argocd-apps/argocd/chart -n argocd -f argocd-apps/argocd/values/values.yaml
+kubectl rollout restart statefulset/argocd-application-controller -n argocd
+```
+
+## Step 4 — Monitor and activate sidecars
 
 ```bash
 # Watch all applications converge
 kubectl get applications -n argocd -w
 
-# Watch pods come up
-kubectl get pods -n observability -w
-kubectl get pods -n traefik -w
+# Wait for istiod before restarting observability pods
+kubectl rollout status deployment/istiod -n istio-system
 
-# Verify ingress once Traefik is Ready
+# Watch observability pods come up
+kubectl get pods -n observability -w
+
+# Rolling restart to inject Envoy sidecars into existing pods
+kubectl rollout restart deployment -n observability
+kubectl rollout restart daemonset -n observability
+kubectl get pods -n observability   # expect 2/2 READY per pod
+
+# Verify ingress
 curl -sI http://localhost:30080/grafana | head -1
 curl -sI http://localhost:30080/jaeger | head -1
+curl -sI http://localhost:30080/kiali | head -1
 ```
+
+### Access the UIs
+
+| UI | URL | Credentials |
+|---|---|---|
+| Grafana | http://localhost:30080/grafana | admin / admin123 |
+| VictoriaMetrics | http://localhost:30080/vmui | — |
+| Jaeger | http://localhost:30080/jaeger | — |
+| Kiali | http://localhost:30080/kiali | anonymous |
+| Traefik | http://localhost:30080/traefik | — |
+| ArgoCD | http://localhost:30080/argocd | admin / see Step 1 |
 
 Run `/verify-otel` to confirm all three pillars are flowing end-to-end.
