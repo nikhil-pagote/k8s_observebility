@@ -8,6 +8,10 @@ resources:
     memory: 64Mi
     cpu: 100m
 
+extraArgs:
+  - --collector.processes
+  - --collector.interrupts
+
 service:
   type: ClusterIP
   port: 9100
