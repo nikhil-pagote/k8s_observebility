@@ -53,7 +53,7 @@ dashboards:
       file: dashboards/loki-k8s-events.json
     victoria-metrics:
       gnetId: 10229
-      revision: 35
+      revision: 54
       datasource: VictoriaMetrics
 
 dashboardProviders:

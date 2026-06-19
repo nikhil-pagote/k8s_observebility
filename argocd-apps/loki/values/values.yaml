@@ -43,8 +43,10 @@ monitoring:
     enabled: false
     grafanaAgent:
       installOperator: false
-  lokiCanary:
-    enabled: false
+
+# lokiCanary moved to top-level in chart 7.0.0
+lokiCanary:
+  enabled: false
 
 test:
   enabled: false
