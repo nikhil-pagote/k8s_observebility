@@ -143,6 +143,15 @@ All vendored dashboards are committed to `argocd-apps/grafana/chart/dashboards/`
 
 ---
 
+## Docs
+
+| Document | Description |
+|---|---|
+| [`docs/troubleshooting_guide.md`](docs/troubleshooting_guide.md) | Stack-specific troubleshooting for Kind + Podman, ArgoCD, OTel, VictoriaMetrics, Loki, Jaeger, Traefik |
+| [`docs/promql.md`](docs/promql.md) | PromQL query reference for all scrape jobs (node, cAdvisor, Istio, Traefik, OTel, VM self-metrics) |
+
+---
+
 ## Troubleshooting
 
 | Symptom | Likely Cause | Fix |
