@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: istio-istiod
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+    app.kubernetes.io/part-of: observability-stack
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/nikhil-pagote/k8s_observebility.git
+    targetRevision: istio-envoy
+    path: argocd-apps/istio-istiod/chart
+    helm:
+      valueFiles:
+        - ../values/values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: istio-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

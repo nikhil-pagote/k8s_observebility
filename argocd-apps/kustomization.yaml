@@ -6,6 +6,12 @@ metadata:
   namespace: argocd
 
 resources:
+  # Istio sidecar mesh
+  - gateway-api-crds/app.yaml
+  - istio-base/app.yaml
+  - istio-istiod/app.yaml
+  - istio-mesh-config/app.yaml
+  # Existing apps
   - traefik/app.yaml
   - grafana/app.yaml
   - victoria-metrics/app.yaml

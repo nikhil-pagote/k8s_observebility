@@ -21,6 +21,7 @@ Each repo must be owned and published by the upstream project itself.
 | `open-telemetry` | https://open-telemetry.github.io/opentelemetry-helm-charts | OpenTelemetry project (CNCF) |
 | `traefik` | https://traefik.github.io/charts | Traefik Labs |
 | `victoriametrics` | https://victoriametrics.github.io/helm-charts/ | VictoriaMetrics |
+| `istio` | https://istio-release.storage.googleapis.com/charts | Istio Project (CNCF) |
 
 ## Adding a New Chart
 
