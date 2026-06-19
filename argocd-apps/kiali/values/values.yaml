@@ -14,7 +14,7 @@ external_services:
     use_grpc: false
   grafana:
     enabled: true
-    in_cluster_url: "http://grafana.observability.svc.cluster.local:80"
+    in_cluster_url: "http://grafana.observability.svc.cluster.local:80/grafana"
     url: "http://localhost:30080/grafana"
   istio:
     root_namespace: istio-system
