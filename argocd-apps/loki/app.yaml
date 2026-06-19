@@ -11,7 +11,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/nikhil-pagote/k8s_observebility.git
-    targetRevision: otel-first
+    targetRevision: istio-envoy
     path: argocd-apps/loki/chart
     helm:
       valueFiles:
