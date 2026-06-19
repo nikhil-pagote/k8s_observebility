@@ -25,10 +25,19 @@ clusterRole:
   create: true
   rules:
     - apiGroups: [""]
-      resources: ["nodes", "nodes/metrics", "nodes/proxy", "services", "endpoints", "pods", "namespaces", "events"]
+      resources: ["nodes", "nodes/metrics", "nodes/proxy", "nodes/stats", "services", "endpoints", "pods", "namespaces", "events"]
       verbs: ["get", "list", "watch"]
     - nonResourceURLs: ["/metrics", "/metrics/cadvisor"]
       verbs: ["get"]
+    - apiGroups: ["apps"]
+      resources: ["daemonsets", "deployments", "replicasets", "statefulsets"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["batch"]
+      resources: ["jobs", "cronjobs"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["autoscaling"]
+      resources: ["horizontalpodautoscalers"]
+      verbs: ["get", "list", "watch"]
 
 resources:
   limits:
@@ -42,6 +51,20 @@ config:
   receivers:
     k8s_events:
       auth_type: serviceAccount
+
+    kubeletstats:
+      collection_interval: 30s
+      auth_type: serviceAccount
+      insecure_skip_verify: true
+      metric_groups: [node, pod, container]
+      k8s_api_config:
+        auth_type: serviceAccount
+
+    k8s_cluster:
+      collection_interval: 30s
+      auth_type: serviceAccount
+      node_conditions_to_report: [Ready, MemoryPressure, DiskPressure, PIDPressure]
+      allocatable_types_to_report: [cpu, memory, ephemeral-storage]
 
     otlp:
       protocols:
@@ -210,7 +233,7 @@ config:
         processors: [memory_limiter, resource, batch]
         exporters: [debug, otlp/jaeger]
       metrics:
-        receivers: [otlp, prometheus]
+        receivers: [otlp, prometheus, kubeletstats, k8s_cluster]
         processors: [memory_limiter, resource, transform/traefik_labels, batch]
         exporters: [prometheusremotewrite, debug]
       logs:
