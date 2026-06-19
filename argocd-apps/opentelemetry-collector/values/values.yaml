@@ -186,33 +186,6 @@ config:
                 action: replace
                 target_label: kubernetes_name
 
-          - job_name: istio-mesh
-            kubernetes_sd_configs:
-              - role: pod
-                namespaces:
-                  names: [observability]
-            relabel_configs:
-              # Skip pods that aren't Running (e.g. init containers)
-              - source_labels: [__meta_kubernetes_pod_phase]
-                action: keep
-                regex: Running
-              # Skip node-exporter (host-networked, no Envoy sidecar)
-              - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
-                action: drop
-                regex: prometheus-node-exporter
-              # Scrape Envoy's prometheus stats port
-              - source_labels: [__address__]
-                action: replace
-                regex: ([^:]+)(?::\d+)?
-                replacement: $1:15090
-                target_label: __address__
-              - source_labels: [__meta_kubernetes_namespace]
-                target_label: namespace
-              - source_labels: [__meta_kubernetes_pod_name]
-                target_label: pod
-              - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
-                regex: (.+)
-                target_label: app
 
   processors:
     batch:
