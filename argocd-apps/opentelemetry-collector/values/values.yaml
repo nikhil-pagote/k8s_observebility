@@ -192,6 +192,14 @@ config:
         - key: service.name
           value: "k8sevents"
           action: upsert
+    transform/k8s_labels:
+      metric_statements:
+        - context: datapoint
+          statements:
+            - set(attributes["namespace"], resource.attributes["k8s.namespace.name"]) where resource.attributes["k8s.namespace.name"] != nil
+            - set(attributes["node"], resource.attributes["k8s.node.name"]) where resource.attributes["k8s.node.name"] != nil
+            - set(attributes["container"], resource.attributes["k8s.container.name"]) where resource.attributes["k8s.container.name"] != nil
+
     transform/traefik_labels:
       metric_statements:
         - context: datapoint
@@ -229,7 +237,7 @@ config:
         exporters: [debug, otlp/jaeger]
       metrics:
         receivers: [otlp, prometheus, k8s_cluster]
-        processors: [memory_limiter, resource, transform/traefik_labels, batch]
+        processors: [memory_limiter, resource, transform/k8s_labels, transform/traefik_labels, batch]
         exporters: [prometheusremotewrite, debug]
       logs:
         receivers: [otlp]
