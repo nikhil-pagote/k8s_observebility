@@ -21,7 +21,24 @@ external_services:
 
 deployment:
   ingress:
-    enabled: false
+    enabled: true
+    override_yaml:
+      metadata:
+        annotations:
+          kubernetes.io/ingress.class: traefik
+          traefik.ingress.kubernetes.io/router.entrypoints: web
+      spec:
+        rules:
+          - host: localhost
+            http:
+              paths:
+                - path: /kiali
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: kiali
+                      port:
+                        number: 20001
 
 resources:
   requests:
