@@ -1,6 +1,9 @@
 ---
 description: Only official, project-maintained Helm repos may be used in this project
-applies-to: helm
+globs:
+  - "argocd-apps/**/Chart.yaml"
+  - "argocd-apps/**/values.yaml"
+  - ".claude/rules/helm-charts.md"
 ---
 
 # Rule: Official Helm Charts Only

@@ -1,6 +1,9 @@
 ---
 description: All Python tooling must use uv. Never use pip, pipx, or virtualenv.
-applies-to: python
+globs:
+  - "**/*.py"
+  - "pyproject.toml"
+  - "uv.lock"
 ---
 
 # Rule: Python Tooling

@@ -1,6 +1,6 @@
 ---
 description: Keep docs/ and .claude/specs/ in sync with code changes before committing
-applies-to: git
+alwaysApply: true
 ---
 
 # Rule: Update Docs and Specs Before Commit
