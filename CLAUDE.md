@@ -113,6 +113,7 @@ Briefing files for parallel subagents live in `.claude/agents/`:
 | `loki.md` | Loki |
 | `jaeger.md` | Jaeger |
 | `traefik.md` | Traefik + IngressRoutes |
+| `istio.md` | Istio service mesh + Kiali — sidecar injection, mTLS, webhook ignoreDifferences, metrics scraping |
 | `dashboards/kube-state.md` | kubernetes-views-global.json (uses k8s_* OTel metrics) |
 | `dashboards/traefik.md` | traefik.json |
 | `dashboards/node-exporter.md` | node-exporter.json |
