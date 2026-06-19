@@ -186,6 +186,32 @@ config:
                 action: replace
                 target_label: kubernetes_name
 
+          - job_name: istio-mesh
+            kubernetes_sd_configs:
+              - role: pod
+                namespaces:
+                  names: [observability]
+            relabel_configs:
+              # Only pods with Istio sidecar injection annotation
+              - source_labels: [__meta_kubernetes_pod_annotation_sidecar_istio_io_status]
+                action: keep
+                regex: .+
+              # Scrape Envoy's prometheus stats port
+              - source_labels: [__address__]
+                action: replace
+                regex: ([^:]+)(?::\d+)?
+                replacement: $1:15090
+                target_label: __address__
+              - source_labels: [__meta_kubernetes_namespace]
+                target_label: namespace
+              - source_labels: [__meta_kubernetes_pod_name]
+                target_label: pod
+              - source_labels: [__meta_kubernetes_pod_label_app]
+                target_label: app
+              - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+                regex: (.+)
+                target_label: app
+
   processors:
     batch:
       timeout: 1s
