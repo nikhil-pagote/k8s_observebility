@@ -71,7 +71,7 @@ pre-commit install
 |---|---|
 | `traefik` | Traefik ingress controller (sync-wave 0 — deployed first) |
 | `argocd` | ArgoCD server + application controller |
-| `observability` | VictoriaMetrics, Grafana, Jaeger, Loki, OTel Collector, node-exporter, kube-state-metrics, Pushgateway |
+| `observability` | VictoriaMetrics, Grafana, Jaeger, Loki, OTel Collector, node-exporter |
 
 **Data flow:** Apps → OTel Collector (OTLP :4317) → VictoriaMetrics (metrics, via remote_write) + Jaeger (traces) + Loki (logs) → Grafana
 
@@ -80,7 +80,7 @@ pre-commit install
 - ArgoCD sync-wave ordering: Traefik must be running before other apps create IngressRoutes.
 - Grafana sub-path routing requires `serve_from_sub_path=true` and matching `root_url` in Helm values.
 - **Log store is Loki** — the guide `otel operator for k8s.md` references Elasticsearch/ClickHouse, but this project uses Loki (single-binary, filesystem storage). Logs are received via OTLP (not filelog DaemonSet).
-- **Metrics backend is VictoriaMetrics** — Prometheus is not deployed. OTel Collector scrapes infra metrics (node-exporter, kube-state-metrics, cAdvisor) and receives OTLP from apps, then pushes everything to VictoriaMetrics via `prometheusremotewrite`. Grafana uses VictoriaMetrics as a Prometheus-compatible datasource.
+- **Metrics backend is VictoriaMetrics** — Prometheus is not deployed. OTel Collector scrapes infra metrics (node-exporter, cAdvisor) and watches Kubernetes object state via `k8s_cluster` receiver (replaces kube-state-metrics), and receives OTLP from apps, then pushes everything to VictoriaMetrics via `prometheusremotewrite`. Grafana uses VictoriaMetrics as a Prometheus-compatible datasource.
 - OTel Collector in-cluster endpoint: `http://opentelemetry-collector.observability.svc.cluster.local:4317`
 
 ## Project skills
@@ -96,6 +96,28 @@ Skills in `.claude/skills/` (invoke via the Skill tool):
 | `helm` | Add repos, pull charts locally into `argocd-apps/<app>/chart/` |
 | `kind-cluster` | Start, stop, restart, or check status of the Kind cluster |
 
-Architecture and pipeline details: `.claude/specs/`
+Architecture and pipeline design: `.claude/specs/architecture.md`, `.claude/specs/otel-pipeline.md`
+
+Technical implementation details: `.claude/specs/design_doc.md`
+
+## Subagent briefings
+
+Briefing files for parallel subagents live in `.claude/agents/`:
+
+| Briefing | Covers |
+|---|---|
+| `grafana.md` | Grafana app — datasources, provisioning, dashboard add/remove workflow |
+| `exporters.md` | node-exporter |
+| `otel.md` | OpenTelemetry Collector |
+| `victoriametrics.md` | VictoriaMetrics |
+| `loki.md` | Loki |
+| `jaeger.md` | Jaeger |
+| `traefik.md` | Traefik + IngressRoutes |
+| `dashboards/kube-state.md` | kubernetes-views-global.json (uses k8s_* OTel metrics) |
+| `dashboards/traefik.md` | traefik.json |
+| `dashboards/node-exporter.md` | node-exporter.json |
+| `dashboards/loki-k8s-events.md` | loki-k8s-events.json (grafana.com ID 17882) |
+
+When a task touches multiple components, spawn parallel subagents — one per component, each briefed from the relevant `.claude/agents/*.md` file.
 
 Project rules: `.claude/rules/`

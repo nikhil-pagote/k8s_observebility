@@ -16,9 +16,10 @@ A local Kubernetes observability POC using **OpenTelemetry** as the unified coll
 
 ```
 node-exporter  ──────────────────────────────┐
-kube-state-metrics ──────────────────────────┤ OTel prometheus receiver (pull)
-cAdvisor (kubelet) ──────────────────────────┤
+cAdvisor (kubelet) ──────────────────────────┤ OTel prometheus receiver (pull)
 annotated pods/endpoints ────────────────────┘
+                                             │
+Kubernetes API (state) ───────────────────── ┤ k8s_cluster receiver (watch)
                                              │
 App (OTLP :4317/4318) ───────────────────────┤ OTel Collector
                                              │
@@ -46,8 +47,6 @@ Kubernetes API (events) ──────────────────�
 | Loki | observability | grafana/loki | Log store (single-binary, filesystem) |
 | OTel Collector | observability | open-telemetry/opentelemetry-collector | Single ingestion layer — scrapes infra, receives OTLP from apps |
 | node-exporter | observability | prometheus-community/prometheus-node-exporter | Host metrics (CPU, mem, disk, network) — DaemonSet |
-| kube-state-metrics | observability | prometheus-community/kube-state-metrics | Kubernetes object metrics |
-| Pushgateway | observability | prometheus-community/prometheus-pushgateway | Accepts pushed metrics from batch/short-lived jobs |
 
 ## Ingress Routing
 
@@ -88,7 +87,7 @@ Not used. The stack runs a plain `opentelemetry-collector-contrib` Deployment (n
 
 Sync-wave annotation controls order:
 1. Wave 0: Traefik (must be first — other apps depend on ingress)
-2. Wave 1+: VictoriaMetrics, Grafana, Jaeger, Loki, OTel Collector, node-exporter, kube-state-metrics
+2. Wave 1+: VictoriaMetrics, Grafana, Jaeger, Loki, OTel Collector, node-exporter
 
 ## Grafana Data Sources
 

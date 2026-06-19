@@ -24,9 +24,10 @@ depends-on:
 
 ## Role in stack
 Single ingestion layer for all three pillars. It:
-- **Scrapes** infrastructure metrics (node-exporter, kube-state-metrics, cAdvisor/kubelet) via `prometheus` receiver
-- **Receives** OTLP from applications on `:4317` (gRPC) and `:4318` (HTTP)
+- **Scrapes** infrastructure metrics (node-exporter, cAdvisor/kubelet) via `prometheus` receiver
+- **Watches** Kubernetes object state via `k8s_cluster` receiver (replaces kube-state-metrics)
 - **Watches** Kubernetes API for cluster events via `k8s_events` receiver (all namespaces)
+- **Receives** OTLP from applications on `:4317` (gRPC) and `:4318` (HTTP)
 - **Exports** metrics → VictoriaMetrics (`prometheusremotewrite`), traces → Jaeger (OTLP), logs → Loki (`otlphttp/loki`)
 
 In-cluster endpoint for apps: `http://opentelemetry-collector.observability.svc.cluster.local:4317`
@@ -36,7 +37,7 @@ No OTel Operator is used — this is a plain `opentelemetry-collector-contrib` D
 ### Pipelines
 | Name | Receivers | Exporters |
 |---|---|---|
-| `metrics` | `otlp`, `prometheus` | `prometheusremotewrite`, `debug` |
+| `metrics` | `otlp`, `prometheus`, `k8s_cluster` | `prometheusremotewrite`, `debug` |
 | `traces` | `otlp` | `otlp/jaeger`, `debug` |
 | `logs` | `otlp` | `otlphttp/loki`, `debug` |
 | `logs/k8sevents` | `k8s_events` | `otlphttp/loki` |

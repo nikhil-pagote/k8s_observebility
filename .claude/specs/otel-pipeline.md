@@ -17,6 +17,7 @@ Processors:
   memory_limiter:    limit=1500MiB, check_interval=1s  [must be first]
   resource:          adds k8s.cluster.name=observability-cluster
   resource/k8sevents: adds k8s.cluster.name + service.name=k8sevents (for k8s_events pipeline only)
+  transform/k8s_labels:    promotes namespace/node/container from resource attrs to datapoint attrs (k8s_cluster metrics)
   transform/traefik_labels: promotes pod/host from resource attrs to datapoint attrs (metrics only)
   batch:             timeout=1s, send_batch_size=1024
 
@@ -27,7 +28,7 @@ Exporters:
   debug:                 verbosity=detailed
 
 Pipelines:
-  metrics:       [otlp, prometheus]  → [memory_limiter, resource, transform/traefik_labels, batch] → [prometheusremotewrite, debug]
+  metrics:       [otlp, prometheus, k8s_cluster] → [memory_limiter, resource, transform/k8s_labels, transform/traefik_labels, batch] → [prometheusremotewrite, debug]
   traces:        [otlp]              → [memory_limiter, resource, batch]                           → [otlp/jaeger, debug]
   logs:          [otlp]              → [memory_limiter, resource, batch]                           → [otlphttp/loki, debug]
   logs/k8sevents:[k8s_events]        → [memory_limiter, resource/k8sevents, batch]                 → [otlphttp/loki]
@@ -39,8 +40,6 @@ Pipelines:
 |---|---|---|
 | `victoria-metrics` | victoria-metrics.observability.svc:8428 | static |
 | `opentelemetry-collector` | opentelemetry-collector.observability.svc:8888 | static |
-| `pushgateway` | pushgateway.observability.svc:9091 | static, honor_labels |
-| `kube-state-metrics` | kube-state-metrics.observability.svc:8080 | static |
 | `node-exporter` | kubernetes_sd endpoints, ns=observability | kubernetes_sd |
 | `kubernetes-cadvisor` | kubelet /metrics/cadvisor via API server proxy | kubernetes_sd nodes |
 | `traefik` | kubernetes_sd pods, ns=traefik, port 8082 | kubernetes_sd |
