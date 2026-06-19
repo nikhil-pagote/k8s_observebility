@@ -19,6 +19,9 @@ server:
   scrape:
     enabled: false
 
+  extraArgs:
+    maxLabelsPerTimeseries: "60"
+
   service:
     type: ClusterIP
     servicePort: 8428
