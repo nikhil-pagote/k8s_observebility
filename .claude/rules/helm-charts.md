@@ -22,6 +22,7 @@ Each repo must be owned and published by the upstream project itself.
 | `traefik` | https://traefik.github.io/charts | Traefik Labs |
 | `victoriametrics` | https://victoriametrics.github.io/helm-charts/ | VictoriaMetrics |
 | `istio` | https://istio-release.storage.googleapis.com/charts | Istio Project (CNCF) |
+| `kiali` | https://kiali.org/helm-charts | Kiali Project (CNCF) |
 
 ## Adding a New Chart
 

@@ -11,6 +11,7 @@ resources:
   - istio-base/app.yaml
   - istio-istiod/app.yaml
   - istio-mesh-config/app.yaml
+  - kiali/app.yaml
   # Existing apps
   - traefik/app.yaml
   - grafana/app.yaml

@@ -36,6 +36,13 @@ spec:
             name: jaeger
             port:
               number: 16686
+      - path: /kiali
+        pathType: Prefix
+        backend:
+          service:
+            name: kiali
+            port:
+              number: 20001
 ---
 apiVersion: v1
 kind: ConfigMap
