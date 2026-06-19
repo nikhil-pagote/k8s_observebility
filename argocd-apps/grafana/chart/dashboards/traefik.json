@@ -2286,18 +2286,18 @@
         "hide": 2,
         "label": "Scrape Interval",
         "name": "scrape_interval",
-        "query": "${VAR_SCRAPE_INTERVAL}",
+        "query": "15s",
         "skipUrlSync": true,
         "type": "constant",
         "current": {
-          "value": "${VAR_SCRAPE_INTERVAL}",
-          "text": "${VAR_SCRAPE_INTERVAL}",
+          "value": "15s",
+          "text": "15s",
           "selected": false
         },
         "options": [
           {
-            "value": "${VAR_SCRAPE_INTERVAL}",
-            "text": "${VAR_SCRAPE_INTERVAL}",
+            "value": "15s",
+            "text": "15s",
             "selected": false
           }
         ]
