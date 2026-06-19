@@ -15,22 +15,24 @@ A Kubernetes observability POC using **OpenTelemetry** as the unified collection
 ### Data flow
 
 ```
-node-exporter       :9100 ─┐
-kube-state-metrics  :8080 ─┤
-pushgateway         :9091 ─┤  OTel prometheus receiver (pull)
-cAdvisor (kubelet)        ─┤
-annotated pods/endpoints  ─┘
-                           │
-App (OTLP :4317/4318) ─────┤  OTel Collector (single ingestion layer)
-                           │
-             ┌─────────────┼──────────────┐
-             ▼             ▼              ▼
-     VictoriaMetrics     Jaeger         Loki
-     (remote_write)   (OTLP traces)  (OTLP logs)
-             │             │              │
-             └─────────────┴──────────────┘
-                           ▼
-                        Grafana
+node-exporter                        ─┐
+cAdvisor (kubelet /metrics/cadvisor) ─┤  OTel prometheus receiver (pull)
+kubelet  (kubelet /metrics)          ─┤   (PVC volume stats)
+annotated pods/endpoints             ─┘
+                                      │
+Kubernetes API (object state) ────────┤  k8s_cluster receiver (watch)
+Kubernetes API (events) ──────────────┤  k8s_events receiver (watch)
+                                      │
+App (OTLP :4317/4318) ────────────────┤  OTel Collector (single ingestion layer)
+                                      │
+                   ┌──────────────────┼──────────────┐
+                   ▼                  ▼              ▼
+           VictoriaMetrics          Jaeger          Loki
+           (remote_write)        (OTLP traces)  (OTLP logs)
+                   │                  │              │
+                   └──────────────────┴──────────────┘
+                                      ▼
+                                   Grafana
 ```
 
 ### Components
@@ -38,11 +40,9 @@ App (OTLP :4317/4318) ─────┤  OTel Collector (single ingestion layer
 | Component | Namespace | Purpose |
 |---|---|---|
 | **Traefik** | traefik | Path-based ingress on NodePort 30080 |
-| **OTel Collector** | observability | Single ingestion layer — scrapes infra metrics, receives OTLP from apps |
+| **OTel Collector** | observability | Single ingestion layer — scrapes infra metrics, watches K8s state/events, receives OTLP from apps |
 | **VictoriaMetrics** | observability | Metrics storage backend, receives remote_write, serves PromQL |
 | **node-exporter** | observability | Host metrics (CPU, memory, disk, network) — DaemonSet |
-| **kube-state-metrics** | observability | Kubernetes object metrics (pod status, replicas, resource limits) |
-| **Pushgateway** | observability | Accepts pushed metrics from batch jobs and short-lived processes |
 | **Loki** | observability | Log storage (single-binary, filesystem) |
 | **Jaeger** | observability | Distributed trace storage and query UI |
 | **Grafana** | observability | Unified dashboards — correlates metrics, traces, and logs |
@@ -117,16 +117,6 @@ env:
     value: "my-service"
 ```
 
-### Batch job metrics (Pushgateway)
-
-For jobs that exit before they can be scraped:
-
-```bash
-# Push a metric from a shell script
-echo "job_duration_seconds 42" | curl --data-binary @- \
-  http://pushgateway.observability.svc.cluster.local:9091/metrics/job/my-batch-job
-```
-
 ---
 
 ## Grafana Data Sources
@@ -137,14 +127,15 @@ Auto-provisioned via Helm values:
 
 ### Dashboards (auto-provisioned)
 
-| Dashboard | Grafana ID | Source |
+| Dashboard | Source | Notes |
 |---|---|---|
-| K8S Dashboard (global cluster view) | 15661 rev 2 | vendored JSON — `chart/dashboards/` |
-| Kubernetes Traefik Ingress NextGen | 25330 rev 1 | downloaded via gnetId at startup |
-| Node Exporter Full | 1860 rev 22 | downloaded via gnetId at startup |
-| VictoriaMetrics single-node | 10229 rev 35 | downloaded via gnetId at startup |
+| Kubernetes Views Global | vendored JSON | rewritten to use `k8s_cluster` OTel metrics; no kube-state-metrics |
+| Traefik | vendored JSON | uses `traefik_*` metrics scraped from pods |
+| Node Exporter Full | vendored JSON | v101 with processes/interrupts collectors enabled |
+| Loki K8s Events | vendored JSON | shows Kubernetes events from `k8s_events` receiver |
+| VictoriaMetrics | gnetId 10229 rev 54 | downloaded from grafana.com at startup |
 
-The K8S Dashboard JSON is pre-patched and committed to the repo (`argocd-apps/grafana/chart/dashboards/kubernetes-views-global.json`) so it works with VictoriaMetrics as the datasource without any runtime network dependency.
+All vendored dashboards are committed to `argocd-apps/grafana/chart/dashboards/` — no runtime network dependency for those panels.
 
 ---
 
@@ -189,8 +180,6 @@ kubectl get ingressroute -A
 | Loki | 512 MB | 500m |
 | OTel Collector | 512 MB | 500m |
 | node-exporter | 128 MB | 250m |
-| kube-state-metrics | 256 MB | 250m |
-| Pushgateway | 128 MB | 250m |
 
 ---
 
