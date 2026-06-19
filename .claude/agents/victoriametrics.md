@@ -22,7 +22,7 @@ Metrics storage backend. Receives all metrics from the OTel Collector via `prome
 
 Grafana datasource name: `VictoriaMetrics` (type: prometheus, `http://victoria-metrics.observability.svc.cluster.local:8428`)
 
-UI available at `http://localhost:30080/vmui` (via Traefik). Two routes are needed for vmui to function — Traefik routes both `/vmui` and `/api/v1` to VictoriaMetrics. The vmui loads from `/vmui` but makes all API calls to `/api/v1/query`, `/api/v1/label/...`, etc. without a prefix, so both routes must exist in `argocd-apps/observability-ingress.yaml`.
+UI available at `http://localhost:30080/vmui` (via Traefik). In the vmui settings, set **Server URL to `http://localhost:30080/vmui`**. The vmui then makes API calls to `/vmui/api/v1/query` etc., which Traefik strips the `/vmui` prefix from before forwarding to VictoriaMetrics. Two resources in `argocd-apps/observability-ingress.yaml` handle this: the Kubernetes Ingress routes `/vmui` (SPA), and a Traefik IngressRoute with `strip-vmui` Middleware routes `/vmui/api` → VictoriaMetrics `/api`.
 
 ## Key files
 ```
@@ -49,13 +49,13 @@ kubectl logs -n observability deployment/victoria-metrics --tail=50
 ## Query metrics
 ```bash
 # List all metric names
-curl -s "http://localhost:30080/api/v1/label/__name__/values" | python3 -c "
+curl -s "http://localhost:30080/vmui/api/v1/label/__name__/values" | python3 -c "
 import sys, json; d = json.load(sys.stdin)
 print(f'{len(d[\"data\"])} metrics:', d['data'][:20])
 "
 
 # Check scrape targets are up
-curl -s "http://localhost:30080/api/v1/query?query=up" | python3 -c "
+curl -s "http://localhost:30080/vmui/api/v1/query?query=up" | python3 -c "
 import sys, json
 for r in json.load(sys.stdin)['data']['result']:
     print(r['metric'].get('job','?'), ':', 'UP' if r['value'][1]=='1' else 'DOWN')

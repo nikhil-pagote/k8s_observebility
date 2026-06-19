@@ -29,13 +29,6 @@ spec:
             name: victoria-metrics
             port:
               number: 8428
-      - path: /api/v1
-        pathType: Prefix
-        backend:
-          service:
-            name: victoria-metrics
-            port:
-              number: 8428
       - path: /jaeger
         pathType: Prefix
         backend:
@@ -43,6 +36,39 @@ spec:
             name: jaeger
             port:
               number: 16686
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-vmui
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: observability-stack
+    app.kubernetes.io/managed-by: argocd
+spec:
+  stripPrefix:
+    prefixes:
+      - /vmui
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: victoria-metrics-api
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: observability-stack
+    app.kubernetes.io/managed-by: argocd
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: PathPrefix(`/vmui/api`)
+      kind: Rule
+      middlewares:
+        - name: strip-vmui
+      services:
+        - name: victoria-metrics
+          port: 8428
 ---
 apiVersion: v1
 kind: ConfigMap
