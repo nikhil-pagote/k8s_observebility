@@ -47,12 +47,13 @@ kubectl logs -n observability deployment/opentelemetry-collector -f
 
 ## Git hooks
 
-| Hook | File | Fires on | Does |
+| Hook | Script | Fires on | Does |
 |---|---|---|---|
-| `pre-commit` | `.claude/hooks/pre-commit.md` | `git commit` | yamllint on staged YAML (Claude); `pre-commit` framework for direct git use |
-| `pre-push` | `.claude/hooks/pre-push.md` | `git push` | `kubectl --dry-run=client` on all manifests |
+| `pre-commit` | `.claude/hooks/pre-commit.sh` | `git commit` | yamllint on staged YAML (Claude); `pre-commit` framework for direct git use |
+| `pre-push` | `.claude/hooks/pre-push.sh` | `git push` | `kubectl --dry-run=client` on all manifests |
+| `post-edit-yamllint` | `.claude/hooks/post-edit-yamllint.sh` | after `Edit` on a YAML file | yamllint the edited file immediately |
 
-Hooks are `.md` files in `.claude/hooks/` — logic is wired into `settings.json` PreToolUse matchers for Claude-executed git commands.
+Hooks are shell scripts in `.claude/hooks/` — wired into `settings.json` PreToolUse/PostToolUse matchers for Claude-executed commands.
 
 For direct `git commit` from the terminal, the `pre-commit` framework applies the rules in `.pre-commit-config.yaml`. Install it once per clone:
 ```bash
