@@ -1,14 +1,3 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: observability
-  annotations:
-    argocd.argoproj.io/sync-wave: "-1"
-  labels:
-    app.kubernetes.io/part-of: observability-stack
-    app.kubernetes.io/managed-by: argocd
-    istio-injection: enabled
----
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
