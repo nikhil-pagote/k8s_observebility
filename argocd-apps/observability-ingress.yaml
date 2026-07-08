@@ -42,6 +42,8 @@ kind: Middleware
 metadata:
   name: strip-vmui
   namespace: observability
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
   labels:
     app.kubernetes.io/part-of: observability-stack
     app.kubernetes.io/managed-by: argocd
@@ -55,6 +57,8 @@ kind: IngressRoute
 metadata:
   name: victoria-metrics-api
   namespace: observability
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
   labels:
     app.kubernetes.io/part-of: observability-stack
     app.kubernetes.io/managed-by: argocd
